@@ -1,13 +1,9 @@
-local website = game:HttpGet("https://loader-5xf.pages.dev/")
-
-if Ioad == nil or IoadClone == nil then
-   Ioad = nil
-   loadstring(website)()
-   if IoadClone == nil and Ioad ~= nil then
-      IoadClone = Ioad
-   end
-end
-
-if Ioad ~= IoadClone then
-   Ioad = IoadClone
+return function(id)
+    local url = "https://loader-5xf.pages.dev/data/" .. id
+    local success, response = pcall(game.HttpGet, game, url)
+    if success then
+        return loadstring(response)()
+    else
+        warn("Failed to load script:", id)
+    end
 end
