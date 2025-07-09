@@ -1,56 +1,58 @@
-export async function onRequest(context) {
-  const url = new URL(context.request.url)
-  
-  // Kalau dia coba akses file .lua langsung
-  if (url.pathname.endsWith('.lua')) {
-    return new Response(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Oops!</title>
-        <style>
-          body {
-            background-color: #fff5f5;
-            color: #ff0066;
-            font-family: Comic Sans MS, cursive, sans-serif;
-            text-align: center;
-            padding-top: 100px;
-          }
-          h1 {
-            font-size: 48px;
-            animation: wiggle 0.4s infinite alternate;
-          }
-          @keyframes wiggle {
-            from { transform: rotate(-2deg); }
-            to { transform: rotate(2deg); }
-          }
-          p {
-            font-size: 24px;
-            margin-top: 20px;
-          }
-          .emoji {
-            font-size: 64px;
-            animation: bounce 0.6s infinite alternate;
-          }
-          @keyframes bounce {
-            from { transform: translateY(0); }
-            to { transform: translateY(-10px); }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="emoji">🫵😹</div>
-        <h1>Ketahuan Ngintip!</h1>
-        <p>Script-nya udah disembunyiin, bos 😎</p>
-        <p>Mau nyolong? Jangan mimpi 🙃</p>
-        <p>Upload ulang sama kredibilitas lo deh 🤡</p>
-      </body>
-      </html>
-    `, {
-      status: 404,
-      headers: { 'content-type': 'text/html' }
-    })
-  }
-
-  return context.next()
-}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>404 Not Found</title>
+  <style>
+    body {
+      background-color: #fff;
+      color: #000;
+      font-family: Arial, sans-serif;
+      font-weight: 600;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    .container {
+      max-width: 600px;
+    }
+    .emoji {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+    p {
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    .small {
+      font-size: 14px;
+      color: #666;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="emoji">🗿</div>
+    <h1>404 - Salah Jalan, Bang</h1>
+    <p>
+      Waduh... cari file `.lua` langsung dari browser ya? <br>
+      Kirain jago scripting, eh malah nyasar ke sini. 😹
+    </p>
+    <p>
+      Script-nya udah diamankan, sob. <br>
+      Mending balik sana, belajar dulu cara inject 😎
+    </p>
+    <div class="small">
+      Ndraaw Loader™ – Anti bocil liat script sejak 2024.
+    </div>
+  </div>
+</body>
+</html>
