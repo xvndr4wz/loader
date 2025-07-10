@@ -1,0 +1,494 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Stats = game:GetService("Stats")
+local player = game.Players.LocalPlayer
+local player = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local StarterGui = game:GetService("StarterGui")
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Ndraawz/NdraawHub/refs/heads/main/animasiloader.lua"))()
+
+local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Ndraawz/NdraawHub/refs/heads/main/UiRedzHubNdraaw"))()
+
+local Window = redzlib:MakeWindow({
+    Title = "Ndraaw! Hub | Paper Plane Jumps",
+    SubTitle = "by Ndraawz ",
+    SaveFolder = "ndraawz"
+  })
+
+  Window:AddMinimizeButton({
+    Button = { Image = "rbxassetid://133702674712786", BackgroundTransparency = 0 },
+    Corner = { CornerRadius = UDim.new(35, 1) },
+})
+
+-- Tab
+local Tab1 = Window:MakeTab({"Credits", "info"})
+local Tab2 = Window:MakeTab({"Main", "Home"})
+local Tab3 = Window:MakeTab({"Misc", "settings"})
+
+-- Fungsi Local
+local inputJobId = nil
+
+-- Tab1 --
+
+Tab1:AddSection({"Credits Ndraaw! Hub"})
+
+Tab1:AddDiscordInvite({
+    Name = "Ndraaw! Hub",
+    Description = "TOP 1 SCRIPT TERBAIK DI DUNIA!😋",
+    Logo = "rbxassetid://126741648567611",
+    Invite = "https://discord.gg/f9KHh3KCat / https://dsc.gg/draaprivt",
+})
+
+local function detectExecutor()
+    if identifyexecutor then
+        return identifyexecutor()
+    elseif syn then
+        return "Synapse X"
+    elseif KRNL_LOADED then
+        return "KRNL"
+    elseif is_sirhurt_closure then
+        return "SirHurt"
+    elseif pebc_execute then
+        return "ProtoSmasher"
+    elseif getexecutorname then
+        return getexecutorname()
+    else
+        return "Executor Desconhecido"
+    end
+end
+
+local executorName = detectExecutor()
+
+local Paragraph = Tab1:AddParagraph({"Executor", executorName})
+
+local Section = Tab1:AddSection({"Ndraaw! Hub Official"})
+
+local Paragraph = Tab1:AddParagraph({"Game :", "Paper Plane Jumps \n by : ndraawz"})
+
+  Tab1:AddButton({
+    Name = "Copy My Tiktok",
+    Callback = function()
+      setclipboard("@ndraawz")
+      setclipboard("tiktok.com/@ndraawz")
+    end
+  })
+
+ -- Tab2 --
+ 
+local Section = Tab2:AddSection({"Empire State Building (World 1)"})
+
+local toggleInfiniteWins = false
+local infiniteWinsCoroutine = nil
+local originalCFrame = nil
+
+local Toggle = Tab2:AddToggle({
+	Name = "Infinite Wins",
+	Description = "Infinite <font color='rgb(88, 101, 242)'>Wins</font>",
+	Default = false
+})
+Toggle:Callback(function(Value)
+	toggleInfiniteWins = Value
+	local player = game:GetService("Players").LocalPlayer
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if toggleInfiniteWins and hrp then
+		originalCFrame = hrp.CFrame
+		hrp.CFrame = CFrame.new(1.61, 14405.53, 79.41)
+		if infiniteWinsCoroutine and coroutine.status(infiniteWinsCoroutine) == "suspended" then
+			coroutine.resume(infiniteWinsCoroutine)
+		else
+			infiniteWinsCoroutine = coroutine.create(function()
+				while toggleInfiniteWins do
+					pcall(function()
+					game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Event"):WaitForChild("Game"):WaitForChild("[C-S]TryGetBanana"):FireServer()
+					end)
+					task.wait(0.01)
+				end
+			end)
+			coroutine.resume(infiniteWinsCoroutine)
+		end
+	else
+		toggleInfiniteWins = false
+		if infiniteWinsCoroutine then
+			infiniteWinsCoroutine = nil
+		end
+		if hrp and originalCFrame then
+			hrp.CFrame = originalCFrame
+		end
+	end
+end)
+
+local infiniteMoney = false
+local moneyCoroutine = nil
+
+local Toggle = Tab2:AddToggle({
+	Name = "Infinite Money",
+	Description = "Infinite <font color='rgb(88, 101, 242)'>Money</font>",
+	Default = false
+})
+Toggle:Callback(function(Value)
+	infiniteMoney = Value
+	if infiniteMoney then
+		if moneyCoroutine and coroutine.status(moneyCoroutine) == "suspended" then
+			coroutine.resume(moneyCoroutine)
+		else
+			moneyCoroutine = coroutine.create(function()
+				while infiniteMoney do
+					pcall(function()
+						local args = {14402.6962890625}
+						game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Event"):WaitForChild("Game"):WaitForChild("[C-S]TryJump"):FireServer(unpack(args))
+					end)
+					task.wait(0.01)
+				end
+			end)
+			coroutine.resume(moneyCoroutine)
+		end
+	else
+		infiniteMoney = false
+		moneyCoroutine = nil
+	end
+end)
+
+local Section = Tab2:AddSection({"The Leaning Tower of Pisa (World 2)"})
+
+local toggleInfiniteWinss = false
+local infiniteWinssCoroutine = nil
+local originalCCFrame = nil
+
+local Toggle = Tab2:AddToggle({
+	Name = "Infinite Wins",
+	Description = "Infinite <font color='rgb(88, 101, 242)'>Wins</font>",
+	Default = false
+})
+
+Toggle:Callback(function(Value)
+	toggleInfiniteWinss = Value
+	local player = game:GetService("Players").LocalPlayer
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+	if toggleInfiniteWinss and hrp then
+		originalCCFrame = hrp.CFrame
+		hrp.CFrame = CFrame.new(-14624.28, 15024.32, 2715.04)
+
+		if infiniteWinssCoroutine and coroutine.status(infiniteWinssCoroutine) == "suspended" then
+			coroutine.resume(infiniteWinssCoroutine)
+		else
+			infiniteWinssCoroutine = coroutine.create(function()
+				while toggleInfiniteWinss do
+					pcall(function()
+						game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Event"):WaitForChild("Game"):WaitForChild("[C-S]TryGetBanana"):FireServer()
+					end)
+					task.wait(0.01)
+				end
+			end)
+			coroutine.resume(infiniteWinssCoroutine)
+		end
+
+	else
+		toggleInfiniteWinss = false
+		if infiniteWinssCoroutine then
+			infiniteWinssCoroutine = nil
+		end
+		if hrp and originalCCFrame then
+			hrp.CFrame = originalCCFrame
+		end
+	end
+end)
+
+local infiniteMoneyy = false
+local moneyyCoroutine = nil
+
+local Toggle = Tab2:AddToggle({
+	Name = "Infinite Money",
+	Description = "Infinite <font color='rgb(88, 101, 242)'>Money</font>",
+	Default = false
+})
+Toggle:Callback(function(Value)
+	infiniteMoneyy = Value
+	if infiniteMoneyy then
+		if moneyyCoroutine and coroutine.status(moneyyCoroutine) == "suspended" then
+			coroutine.resume(moneyyCoroutine)
+		else
+			moneyyCoroutine = coroutine.create(function()
+				while infiniteMoneyy do
+					pcall(function()
+						local args = {14402.6962890625}
+						game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Event"):WaitForChild("Game"):WaitForChild("[C-S]TryJump"):FireServer(unpack(args))
+					end)
+					task.wait(0.01)
+				end
+			end)
+			coroutine.resume(moneyyCoroutine)
+		end
+	else
+		infiniteMoneyy = false
+		moneyyCoroutine = nil
+	end
+end)
+
+-- Tab3 --
+
+local Section = Tab3:AddSection({"Account Info"})
+
+local username = player.Name
+local accountAge = player.AccountAge
+local currentDate = os.date("*t")
+local creationTimestamp = os.time(currentDate) - (accountAge * 24 * 60 * 60)
+local creationDate = os.date("*t", creationTimestamp)
+local hariIndonesia = {
+    "Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"
+}
+local namaHari = hariIndonesia[creationDate.wday]
+local tanggalLengkap = string.format("%s, %02d %s %d", namaHari, creationDate.day, os.date("%B", creationTimestamp), creationDate.year)
+local Paragraph = Tab3:AddParagraph({"Username", username})
+local Paragraph = Tab3:AddParagraph({"Account Age", tostring(accountAge)})
+local Paragraph = Tab3:AddParagraph({"Created", tanggalLengkap})
+
+local perfParagraph = Tab3:AddParagraph({"Ping & FPS", "Menghitung..."})
+local function warnaPing(ping)
+	if ping < 100 then
+		return "<font color='rgb(0,255,0)'>" .. ping .. " ms</font>"
+	elseif ping < 200 then
+		return "<font color='rgb(255,170,0)'>" .. ping .. " ms</font>"
+	else
+		return "<font color='rgb(255,0,0)'>" .. ping .. " ms</font>"
+	end
+end
+local function warnaFPS(fps)
+	if fps >= 60 then
+		return "<font color='rgb(0,255,0)'>" .. fps .. "</font>"
+	elseif fps >= 30 then
+		return "<font color='rgb(255,170,0)'>" .. fps .. "</font>"
+	else
+		return "<font color='rgb(255,0,0)'>" .. fps .. "</font>"
+	end
+end
+task.spawn(function()
+	while true do
+		task.wait(1)
+		local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+		local fps = math.floor(1 / RunService.RenderStepped:Wait())
+
+		local isi = string.format("Ping: %s\nFPS: %s", warnaPing(ping), warnaFPS(fps))
+		pcall(function()
+			perfParagraph:SetDesc(isi)
+		end)
+	end
+end)
+
+local Section = Tab3:AddSection({"Server"})
+
+local PlaceId = game.PlaceId
+local MapName = "Unknown"
+pcall(function()
+	local info = MarketplaceService:GetProductInfo(PlaceId)
+	if info and info.Name then
+		MapName = info.Name
+	end
+end)
+local fullInfo = string.format("%s - %d", MapName, PlaceId)
+local Paragraph = Tab3:AddParagraph({"Name Map :", fullInfo})
+
+local placeId = game.PlaceId
+
+Tab3:AddButton({
+    Name = "Copy Place Id",
+    Callback = function()
+        setclipboard(tostring(placeId))
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Successfully!",
+            Text = "Place ID Successfully Copied To Your Clipboard!",
+            Duration = 4
+        })
+    end
+})
+
+Tab3:AddButton({
+    Name = "Copy Place Id Link",
+    Callback = function()
+        local placeId = game.PlaceId
+        local success, info = pcall(function()
+            return MarketplaceService:GetProductInfo(placeId)
+        end)
+        local link = "https://www.roblox.com/games/" .. placeId
+        if success and info and info.Name then
+            local nameClean = info.Name:gsub(" ", "-"):gsub("[^%w%-]", "")
+            link = link .. "/" .. nameClean
+        end
+        pcall(function()
+            setclipboard(link)
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Successfully!",
+                Text = "Link copied to clipboard.",
+                Duration = 4
+            })
+        end)
+    end
+})
+
+local localTimeParagraph = Tab3:AddParagraph({"Real Time", "Menghitung..."})
+task.spawn(function()
+	while true do
+		task.wait(1)
+		local jam = os.date("%H:%M:%S")
+		localTimeParagraph:SetDesc(jam)
+	end
+end)
+
+local joinTime = tick()
+local playtime = Tab3:AddParagraph({"Play Time", "00:00:00:000"})
+local function formatTime(ms)
+    local totalSeconds = math.floor(ms)
+    local milliseconds = math.floor((ms - totalSeconds) * 1000)
+    local seconds = totalSeconds % 60
+    local minutes = math.floor((totalSeconds / 60)) % 60
+    local hours = math.floor(totalSeconds / 3600)
+    return string.format("%02d:%02d:%02d:%03d", hours, minutes, seconds, milliseconds)
+end
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        local now = tick()
+        local durasi = now - joinTime
+        playtime:SetDesc(formatTime(durasi))
+    end
+end)
+
+Tab3:AddButton({
+    Name = "Rejoin",
+    Callback = function()
+        local TeleportService = game:GetService("TeleportService")
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, game.Players.LocalPlayer)
+    end
+})
+
+Tab3:AddButton({
+    Name = "Hop Server",
+    Callback = function()
+        local function getServers()
+            local servers = {}
+            local success, result = pcall(function()
+                return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"))
+            end)
+            if success and result and result.data then
+                for _, server in ipairs(result.data) do
+                    if server.playing and type(server.playing) == "number" and server.id ~= game.JobId then
+                        table.insert(servers, server.id)
+                    end
+                end
+            end
+            return servers
+        end
+        local availableServers = getServers()
+        if #availableServers > 0 then
+            local randomIndex = math.random(1, #availableServers)
+            local targetServerId = availableServers[randomIndex]
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServerId, player)
+            end)
+        else
+            warn("Not Found Server!")
+        end
+    end
+})
+
+Tab3:AddButton({
+    Name = "Small Server",
+    Callback = function()
+        local function getSmallestPlayerServer()
+            local servers = {}
+            local success, result = pcall(function()
+                return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100"))
+            end)
+            if success and result and result.data then
+                for _, server in ipairs(result.data) do
+                    if server.playing and type(server.playing) == "number" and server.id ~= game.JobId then
+                        table.insert(servers, {id = server.id, playing = server.playing})
+                    end
+                end
+                table.sort(servers, function(a, b)
+                    return a.playing < b.playing
+                end)
+            end
+            return servers
+        end
+        local smallestServers = getSmallestPlayerServer()
+        if #smallestServers > 0 then
+            local targetServerId = smallestServers[1].id
+            local playersInTargetServer = smallestServers[1].playing
+            warn("Mencoba hop ke server dengan " .. playersInTargetServer .. " pemain.")
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServerId, player)
+            end)
+        else
+            warn("Tidak ada server lain yang tersedia atau semua server penuh.")
+        end
+    end
+})
+
+local Section = Tab3:AddSection({"Job Id"})
+
+local currentJobId = game.JobId
+
+local Paragraph = Tab3:AddParagraph({
+    "Job Id Server",
+    currentJobId
+})
+
+Tab3:AddButton({
+    Name = "Copy Job Id",
+    Callback = function()
+        setclipboard(game.JobId)
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Successfully!",
+            Text = "Job ID Successfully Copied To Your Clipboard!",
+            Duration = 4
+        })
+    end
+})
+
+Tab3:AddTextBox({
+    Name = "Insert Job Id Here To Join",
+    Description = "Teleport To Job Id",
+    PlaceholderText = "Job Id",
+    Callback = function(Value)
+        inputJobId = Value
+    end
+})
+
+Tab3:AddButton({
+	Name = "Join Job Id",
+	Callback = function()
+		if inputJobId and inputJobId ~= "" then
+			local placeId = game.PlaceId
+			local didTeleport = false
+			local success, err = pcall(function()
+				TeleportService:TeleportToPlaceInstance(placeId, inputJobId, player)
+			end)
+			task.delay(1, function()
+				if not didTeleport and player.Parent then
+					pcall(function()
+						StarterGui:SetCore("SendNotification", {
+							Title = "Wrong Job Id!",
+							Text = "Please enter the job ID correctly.",
+							Duration = 4
+						})
+					end)
+				end
+			end)
+		else
+			pcall(function()
+				StarterGui:SetCore("SendNotification", {
+					Title = "Job Id Is Empty!",
+					Text = "Please insert the job ID.",
+					Duration = 4
+				})
+			end)
+		end
+	end
+})
