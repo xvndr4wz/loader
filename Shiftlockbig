@@ -1,0 +1,159 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CAS = game:GetService("ContextActionService")
+local UIS = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local ShiftlockStarterGui = Instance.new("ScreenGui")
+ShiftlockStarterGui.Name = "ShiftlockGUI"
+ShiftlockStarterGui.ResetOnSpawn = false
+ShiftlockStarterGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local ImageButton = Instance.new("ImageButton")
+ImageButton.Name = "ShiftButton"
+ImageButton.Parent = ShiftlockStarterGui
+ImageButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ImageButton.BackgroundTransparency = 1.000
+ImageButton.Position = UDim2.new(0.832, 0, 0.867, 0)
+ImageButton.Size = UDim2.new(0.055, 0, 0.057, 0)
+ImageButton.SizeConstraint = Enum.SizeConstraint.RelativeXX
+ImageButton.Image = "http://www.roblox.com/asset/?id=182223762"
+
+local MAX_LENGTH = 900000
+local ENABLED_OFFSET = CFrame.new(1.7, 0, 0)
+local DISABLED_OFFSET = CFrame.new(-1.7, 0, 0)
+
+local character = nil
+local root = nil
+local humanoid = nil
+
+local active = false
+
+local conn = nil
+local characterAddedConn = nil
+local mouseButtonConn = nil
+local casBindConn = nil
+
+local function updateRefs()
+    character = LocalPlayer.Character
+    if not character then
+        character = LocalPlayer.CharacterAdded:Wait()
+    end
+    root = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
+end
+
+updateRefs()
+
+local function UpdateImage(on)
+	ImageButton.Image = on and "rbxasset://textures/ui/mouseLock_on@2x.png" or "rbxasset://textures/ui/mouseLock_off@2x.png"
+end
+
+local function UpdateAutoRotate(bool)
+	if humanoid then
+		humanoid.AutoRotate = bool
+	end
+end
+
+local function GetUpdatedCameraCFrame()
+    if root then
+	    return CFrame.new(root.Position, Vector3.new(Camera.CFrame.LookVector.X * MAX_LENGTH, root.Position.Y, Camera.CFrame.LookVector.Z * MAX_LENGTH))
+    end
+    return Camera.CFrame
+end
+
+local function EnableShiftlock()
+    if humanoid and root and Camera then
+        UpdateAutoRotate(false)
+        Camera.CFrame = Camera.CFrame * ENABLED_OFFSET
+        root.CFrame = GetUpdatedCameraCFrame()
+    end
+end
+
+local function DisableShiftlock()
+    if conn then
+        conn:Disconnect()
+        conn = nil
+    end
+	UpdateAutoRotate(true)
+    if active then
+	    Camera.CFrame = Camera.CFrame * DISABLED_OFFSET
+    end
+    UpdateImage(false)
+end
+
+local function ToggleShiftlock()
+    if not character or not root or not humanoid then
+        updateRefs()
+        if not character or not root or not humanoid then
+            warn("Failed to get character references. Shiftlock toggle aborted.")
+            return
+        end
+    end
+
+    active = not active
+
+    if active then
+        if conn then
+            conn:Disconnect()
+            conn = nil
+        end
+        EnableShiftlock()
+        conn = RunService.RenderStepped:Connect(EnableShiftlock)
+        UpdateImage(true)
+    else
+        DisableShiftlock()
+    end
+end
+
+mouseButtonConn = ImageButton.MouseButton1Click:Connect(ToggleShiftlock)
+
+casBindConn = CAS:BindAction("ShiftLOCK", function(name, state)
+	if state == Enum.UserInputState.Begin then
+		ToggleShiftlock()
+	end
+end, false, Enum.KeyCode.LeftShift)
+
+characterAddedConn = LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    updateRefs()
+
+    if active then
+        active = false
+        ToggleShiftlock()
+    end
+end)
+
+UpdateImage(false)
+
+_G.CleanupGlobalShiftlockFeature = function()
+    if active then
+        DisableShiftlock()
+        active = false
+    end
+
+    if conn then
+        conn:Disconnect()
+        conn = nil
+    end
+    if characterAddedConn then
+        characterAddedConn:Disconnect()
+        characterAddedConn = nil
+    end
+    if mouseButtonConn then
+        mouseButtonConn:Disconnect()
+        mouseButtonConn = nil
+    end
+    
+    CAS:UnbindAction("ShiftLOCK")
+
+    if ImageButton and ImageButton.Parent then
+        ImageButton:Destroy()
+    end
+
+    if ShiftlockStarterGui and ShiftlockStarterGui.Parent then
+        ShiftlockStarterGui:Destroy()
+    end
+
+    script:Destroy()
+    end
