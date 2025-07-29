@@ -1,0 +1,282 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local StarterGui = game:GetService("StarterGui")
+local TextService = game:GetService("TextService")
+
+if game.CoreGui:FindFirstChild("PosTracker") then
+    game.CoreGui.PosTracker:Destroy()
+end
+
+local main = Instance.new("ScreenGui")
+main.Name = "PosTracker"
+main.Parent = game.CoreGui
+main.ResetOnSpawn = false
+
+local MINIMIZED_HEIGHT = 30
+local MAXIMIZED_HEIGHT = 200
+
+local Frame = Instance.new("Frame")
+Frame.Parent = main
+Frame.Size = UDim2.new(0, 0, 0, MAXIMIZED_HEIGHT)
+Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true
+Frame.ClipsDescendants = true
+Frame.Name = "PosTracker_Frame"
+
+local frameCorner = Instance.new("UICorner", Frame)
+frameCorner.CornerRadius = UDim.new(0, 12)
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Parent = Frame
+TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+TitleLabel.Position = UDim2.new(0, 8, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🧭 Position Tracker"
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 22
+TitleLabel.TextColor3 = Color3.new(1, 1, 1)
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.TextWrapped = false
+TitleLabel.AutoLocalize = false
+
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "Minimize"
+MinimizeButton.Parent = Frame
+MinimizeButton.Size = UDim2.new(0, 24, 0, 24)
+MinimizeButton.Position = UDim2.new(1, -56, 0, 4)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+MinimizeButton.Text = "-"
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.TextSize = 20
+MinimizeButton.TextColor3 = Color3.new(1, 1, 1)
+local miniCorner = Instance.new("UICorner", MinimizeButton)
+miniCorner.CornerRadius = UDim.new(0, 6)
+MinimizeButton.Visible = true
+
+local MaximizeButton = Instance.new("TextButton")
+MaximizeButton.Name = "Maximize"
+MaximizeButton.Parent = Frame
+MaximizeButton.Size = UDim2.new(0, 24, 0, 24)
+MaximizeButton.Position = UDim2.new(1, -56, 0, 4)
+MaximizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+MaximizeButton.Text = "+"
+MaximizeButton.Font = Enum.Font.GothamBold
+MaximizeButton.TextSize = 20
+MaximizeButton.TextColor3 = Color3.new(1, 1, 1)
+local mini2Corner = Instance.new("UICorner", MaximizeButton)
+mini2Corner.CornerRadius = UDim.new(0, 6)
+MaximizeButton.Visible = false
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "Close"
+CloseButton.Parent = Frame
+CloseButton.Size = UDim2.new(0, 24, 0, 24)
+CloseButton.Position = UDim2.new(1, -28, 0, 4)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+CloseButton.Text = "X"
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 20
+CloseButton.TextColor3 = Color3.new(1, 1, 1)
+local closeCorner = Instance.new("UICorner", CloseButton)
+closeCorner.CornerRadius = UDim.new(0, 6)
+
+local ContentFrame = Instance.new("Frame", Frame)
+ContentFrame.Size = UDim2.new(1, 0, 1, -30)
+ContentFrame.Position = UDim2.new(0, 0, 0, 30)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.ClipsDescendants = true
+
+local yourCoordinateLabel = Instance.new("TextLabel", ContentFrame)
+yourCoordinateLabel.Position = UDim2.new(0, 10, 0, 5)
+yourCoordinateLabel.Size = UDim2.new(1, -20, 0, 25)
+yourCoordinateLabel.Text = "Your Coordinate :"
+yourCoordinateLabel.TextColor3 = Color3.new(1, 1, 1)
+yourCoordinateLabel.BackgroundTransparency = 1
+yourCoordinateLabel.Font = Enum.Font.GothamBold
+yourCoordinateLabel.TextSize = 14
+yourCoordinateLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local coordXLabel = Instance.new("TextLabel", ContentFrame)
+coordXLabel.Position = UDim2.new(0, 10, 0, 30)
+coordXLabel.Size = UDim2.new(1, -20, 0, 25)
+coordXLabel.Text = "X :"
+coordXLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+coordXLabel.BackgroundTransparency = 1
+coordXLabel.Font = Enum.Font.GothamBold
+coordXLabel.TextSize = 14
+coordXLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local coordYLabel = Instance.new("TextLabel", ContentFrame)
+coordYLabel.Position = UDim2.new(0, 10, 0, 55)
+coordYLabel.Size = UDim2.new(1, -20, 0, 25)
+coordYLabel.Text = "Y :"
+coordYLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+coordYLabel.BackgroundTransparency = 1
+coordYLabel.Font = Enum.Font.GothamBold
+coordYLabel.TextSize = 14
+coordYLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local coordZLabel = Instance.new("TextLabel", ContentFrame)
+coordZLabel.Position = UDim2.new(0, 10, 0, 80)
+coordZLabel.Size = UDim2.new(1, -20, 0, 25)
+coordZLabel.Text = "Z :"
+coordZLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+coordZLabel.BackgroundTransparency = 1
+coordZLabel.Font = Enum.Font.GothamBold
+coordZLabel.TextSize = 14
+coordZLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local errorText = Instance.new("TextLabel", ContentFrame)
+errorText.Position = UDim2.new(0.5, 0, 0.5, 0)
+errorText.AnchorPoint = Vector2.new(0.5, 0.5)
+errorText.Size = UDim2.new(1, 0, 0, 30)
+errorText.Text = "Character not found"
+errorText.TextColor3 = Color3.fromRGB(255, 80, 80)
+errorText.BackgroundTransparency = 1
+errorText.Font = Enum.Font.GothamBold
+errorText.TextSize = 18
+errorText.TextXAlignment = Enum.TextXAlignment.Center
+errorText.TextYAlignment = Enum.TextYAlignment.Center
+errorText.Visible = false
+
+local CopyButton = Instance.new("TextButton", ContentFrame)
+CopyButton.Position = UDim2.new(0.5, 0, 1, -35)
+CopyButton.AnchorPoint = Vector2.new(0.5, 0)
+CopyButton.Size = UDim2.new(0, 180, 0, 25)
+CopyButton.Text = "📋 Copy to Clipboard"
+CopyButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+CopyButton.TextColor3 = Color3.new(1, 1, 1)
+CopyButton.Font = Enum.Font.GothamBold
+CopyButton.TextSize = 16
+local copyCorner = Instance.new("UICorner", CopyButton)
+copyCorner.CornerRadius = UDim.new(0, 8)
+
+local currentCommand = ""
+
+local function calculateOptimalMaximizedWidth()
+    local buttonWidth = 24
+    local buttonSpacing = 5
+    local titleLeftPadding = 8
+
+    local titleTextWidth = TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, 30)).X
+    
+    local headerRequiredWidth = titleLeftPadding + titleTextWidth + buttonSpacing + buttonWidth + buttonSpacing + buttonWidth + titleLeftPadding
+    
+    local dummyLongCoordText = "X : -99999.99"
+    local maxCoordTextWidth = TextService:GetTextSize(dummyLongCoordText, coordXLabel.TextSize, coordXLabel.Font, Vector2.new(1000, 25)).X
+    
+    local copyButtonWidth = CopyButton.Size.X.Offset
+    local contentPadding = 20
+
+    local contentRequiredWidth = math.max(maxCoordTextWidth + contentPadding, copyButtonWidth + contentPadding)
+
+    return math.max(headerRequiredWidth, contentRequiredWidth)
+end
+
+local function updatePosition()
+	local char = LocalPlayer.Character
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		local pos = char.HumanoidRootPart.Position
+        
+        yourCoordinateLabel.Visible = true
+		coordXLabel.Text = string.format("X : %.2f", pos.X)
+        coordYLabel.Text = string.format("Y : %.2f", pos.Y)
+        coordZLabel.Text = string.format("Z : %.2f", pos.Z)
+        
+        coordXLabel.Visible = true
+        coordYLabel.Visible = true
+        coordZLabel.Visible = true
+		errorText.Visible = false
+        
+		currentCommand = string.format("game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(%.2f, %.2f, %.2f)", pos.X, pos.Y, pos.Z)
+	else
+        yourCoordinateLabel.Visible = false
+		coordXLabel.Visible = false
+		coordYLabel.Visible = false
+		coordZLabel.Visible = false
+		errorText.Visible = true
+		currentCommand = ""
+	end
+    
+    if ContentFrame.Visible then
+        local newWidth = calculateOptimalMaximizedWidth()
+        if Frame.Size.X.Offset ~= newWidth then
+            Frame:TweenSize(UDim2.new(0, newWidth, 0, MAXIMIZED_HEIGHT), "Out", "Quad", 0.1, true)
+        end
+    end
+end
+
+updatePosition()
+
+CopyButton.MouseButton1Click:Connect(function()
+	if currentCommand ~= "" then
+		setclipboard(currentCommand)
+		StarterGui:SetCore("SendNotification", {
+			Title = "Copied!",
+			Text = "Teleport command copied!",
+			Duration = 2
+		})
+	end
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+	main:Destroy()
+end)
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    ContentFrame.Visible = false
+    MinimizeButton.Visible = false
+    MaximizeButton.Visible = true
+    
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.Position = UDim2.new(0, 8, 0, 0)
+    
+    local actualTitleTextWidth = TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, 30)).X
+    TitleLabel.Size = UDim2.new(0, actualTitleTextWidth, 0, 30)
+
+    local buttonWidth = 24
+    local buttonSpacing = 5
+    local titleLeftPadding = 8
+
+    local requiredFrameWidth = titleLeftPadding + actualTitleTextWidth + buttonSpacing + buttonWidth + buttonSpacing + buttonWidth + titleLeftPadding
+
+    Frame:TweenSize(UDim2.new(0, requiredFrameWidth, 0, MINIMIZED_HEIGHT), "Out", "Quad", 0.2, true) 
+
+    task.wait(0.2)
+    
+    MaximizeButton.Position = UDim2.new(0, TitleLabel.Position.X.Offset + TitleLabel.Size.X.Offset + buttonSpacing, 0, 4)
+    CloseButton.Position = UDim2.new(0, MaximizeButton.Position.X.Offset + MaximizeButton.Size.X.Offset + buttonSpacing, 0, 4)
+end)
+
+MaximizeButton.MouseButton1Click:Connect(function()
+    ContentFrame.Visible = true
+    MinimizeButton.Visible = true
+    MaximizeButton.Visible = false
+    
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.Position = UDim2.new(0, 8, 0, 0)
+    TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+    
+    local optimalMaximizedWidth = calculateOptimalMaximizedWidth()
+    Frame:TweenSize(UDim2.new(0, optimalMaximizedWidth, 0, MAXIMIZED_HEIGHT), "Out", "Quad", 0.2, true) 
+
+    task.wait(0.2)
+
+    CloseButton.Position = UDim2.new(1, -28, 0, 4)
+    MinimizeButton.Position = UDim2.new(1, -56, 0, 4)
+end)
+
+task.spawn(function()
+	while task.wait(0.001) do
+		updatePosition()
+	end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+	char:WaitForChild("HumanoidRootPart")
+	updatePosition()
+end)
