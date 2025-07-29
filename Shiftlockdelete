@@ -1,0 +1,4 @@
+if _G.CleanupGlobalShiftlockFeature then
+    _G.CleanupGlobalShiftlockFeature()
+else
+end
