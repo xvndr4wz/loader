@@ -1,0 +1,555 @@
+local main = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local up = Instance.new("TextButton")
+local down = Instance.new("TextButton")
+local onof = Instance.new("TextButton")
+local TextLabel = Instance.new("TextLabel")
+local plus = Instance.new("TextButton")
+local speed = Instance.new("TextBox") -- Diubah menjadi TextBox
+local mine = Instance.new("TextButton")
+local closebutton = Instance.new("TextButton")
+local mini = Instance.new("TextButton")
+local mini2 = Instance.new("TextButton")
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+main.Name = "FlyGUI"
+main.Parent = player:WaitForChild("PlayerGui")
+main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+main.ResetOnSpawn = false
+
+Frame.Parent = main
+Frame.Size = UDim2.new(0, 240, 0, 200)
+Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Frame.BorderSizePixel = 0
+Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+Frame.Active = true
+Frame.Draggable = true
+Frame.ClipsDescendants = true
+Frame.Name = "Fly_Frame"
+
+local frameCorner = Instance.new("UICorner", Frame)
+frameCorner.CornerRadius = UDim.new(0, 12)
+
+TextLabel.Parent = Frame
+TextLabel.Size = UDim2.new(1, 0, 0, 30)
+TextLabel.Position = UDim2.new(0, 0, 0, 0)
+TextLabel.BackgroundTransparency = 1
+TextLabel.Text = "Fly GUI"
+TextLabel.Font = Enum.Font.GothamBold
+TextLabel.TextSize = 22
+TextLabel.TextColor3 = Color3.new(1, 1, 1)
+TextLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+up.Name = "UpButton"
+up.Parent = Frame
+up.Size = UDim2.new(0.45, 0, 0, 35)
+up.Position = UDim2.new(0.05, 0, 0, 40)
+up.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+up.Text = "UP"
+up.Font = Enum.Font.Gotham
+up.TextSize = 18
+up.TextColor3 = Color3.new(1, 1, 1)
+local upCorner = Instance.new("UICorner", up)
+upCorner.CornerRadius = UDim.new(0, 8)
+
+down.Name = "DownButton"
+down.Parent = Frame
+down.Size = UDim2.new(0.45, 0, 0, 35)
+down.Position = UDim2.new(0.05, 0, 0, 80)
+down.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+down.Text = "DOWN"
+down.Font = Enum.Font.Gotham
+down.TextSize = 18
+down.TextColor3 = Color3.new(1, 1, 1)
+local downCorner = Instance.new("UICorner", down)
+downCorner.CornerRadius = UDim.new(0, 8)
+
+onof.Name = "ToggleButton"
+onof.Parent = Frame
+onof.Size = UDim2.new(0.8, 0, 0, 45)
+onof.Position = UDim2.new(0.5, 0, 0, 140)
+onof.AnchorPoint = Vector2.new(0.5, 0)
+onof.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+onof.Text = "FLY: OFF"
+onof.Font = Enum.Font.GothamBold
+onof.TextSize = 22
+onof.TextColor3 = Color3.new(1, 1, 1)
+local onofCorner = Instance.new("UICorner", onof)
+onofCorner.CornerRadius = UDim.new(0, 8)
+
+-- Penempatan untuk PLUS
+plus.Name = "PlusButton"
+plus.Parent = Frame
+plus.Size = UDim2.new(0, 40, 0, 35)
+plus.Position = UDim2.new(0.05 + 0.45 + 0.02, 0, 0, 40)
+plus.AnchorPoint = Vector2.new(0, 0)
+plus.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+plus.Text = "+"
+plus.Font = Enum.Font.GothamBold
+plus.TextSize = 20
+plus.TextColor3 = Color3.new(1, 1, 1)
+local plusCorner = Instance.new("UICorner", plus)
+plusCorner.CornerRadius = UDim.new(0, 8)
+
+-- SPEED (TextBox) dengan properti visual mirip TextLabel
+speed.Name = "SpeedInput" -- Mengganti nama dari SpeedLabel
+speed.Parent = Frame
+speed.Size = UDim2.new(0, 60, 0, 35)
+speed.Position = UDim2.new(plus.Position.X.Scale + (plus.Size.X.Offset / Frame.AbsoluteSize.X) + 0.02, 0, 0, 40)
+speed.AnchorPoint = Vector2.new(0, 0)
+speed.BackgroundColor3 = Color3.fromRGB(30, 30, 30) -- Warna latar belakang sama
+speed.Text = "1"
+speed.Font = Enum.Font.GothamBold
+speed.TextSize = 20
+speed.TextColor3 = Color3.fromRGB(255, 150, 0)
+speed.TextXAlignment = Enum.TextXAlignment.Center
+speed.TextYAlignment = Enum.TextYAlignment.Center
+speed.ClearTextOnFocus = false -- Penting: agar teks tidak hilang saat diklik
+speed.ClipsDescendants = true -- Membantu dalam beberapa kasus
+speed.TextWrapped = false
+speed.MultiLine = false
+speed.PlaceholderText = "" -- Pastikan tidak ada placeholder yang mengganggu
+speed.BorderSizePixel = 0 -- Menghilangkan border khas TextBox
+local speedCorner = Instance.new("UICorner", speed)
+speedCorner.CornerRadius = UDim.new(0, 8)
+
+-- Penempatan untuk MINUS
+mine.Name = "MinusButton"
+mine.Parent = Frame
+mine.Size = UDim2.new(0, 40, 0, 35)
+mine.Position = UDim2.new(0.05 + 0.45 + 0.02, 0, 0, 80)
+mine.AnchorPoint = Vector2.new(0, 0)
+mine.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+mine.Text = "-"
+mine.Font = Enum.Font.GothamBold
+mine.TextSize = 20
+mine.TextColor3 = Color3.new(1, 1, 1)
+local mineCorner = Instance.new("UICorner", mine)
+mineCorner.CornerRadius = UDim.new(0, 8)
+
+closebutton.Name = "Close"
+closebutton.Parent = Frame
+closebutton.Size = UDim2.new(0, 24, 0, 24)
+closebutton.Position = UDim2.new(1, -28, 0, 4)
+closebutton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+closebutton.Text = "X"
+closebutton.Font = Enum.Font.GothamBold
+closebutton.TextSize = 20
+closebutton.TextColor3 = Color3.new(1, 1, 1)
+local closeCorner = Instance.new("UICorner", closebutton)
+closeCorner.CornerRadius = UDim.new(0, 6)
+
+mini.Name = "minimize"
+mini.Parent = Frame
+mini.Size = UDim2.new(0, 24, 0, 24)
+mini.Position = UDim2.new(1, -56, 0, 4)
+mini.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+mini.Text = "-"
+mini.Font = Enum.Font.GothamBold
+mini.TextSize = 20
+mini.TextColor3 = Color3.new(1, 1, 1)
+local miniCorner = Instance.new("UICorner", mini)
+miniCorner.CornerRadius = UDim.new(0, 6)
+
+mini2.Name = "minimize2"
+mini2.Parent = Frame
+mini2.Size = UDim2.new(0, 24, 0, 24)
+mini2.Position = UDim2.new(1, -56, 0, 4)
+mini2.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+mini2.Text = "+"
+mini2.Font = Enum.Font.GothamBold
+mini2.TextSize = 20
+mini2.TextColor3 = Color3.new(1, 1, 1)
+mini2.Visible = false
+local mini2Corner = Instance.new("UICorner", mini2)
+mini2Corner.CornerRadius = UDim.new(0, 6)
+
+local speeds = 1
+local tpwalking = false
+local nowe = false
+
+local chr = player.Character
+local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+
+onof.MouseButton1Down:connect(function()
+    if nowe == true then
+        nowe = false
+        tpwalking = false
+
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,true)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,true)
+        player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+        player.Character.Animate.Disabled = false
+        onof.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+        onof.Text = "FLY: OFF"
+
+    else
+        nowe = true
+        tpwalking = true
+
+        for i = 1, speeds do
+            spawn(function()
+                local hb = RunService.Heartbeat
+                local character = player.Character
+                local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+                while tpwalking and hb:Wait() and character and humanoid and humanoid.Parent do
+                    if humanoid.MoveDirection.Magnitude > 0 then
+                        character:TranslateBy(humanoid.MoveDirection)
+                    end
+                end
+            end)
+        end
+
+        player.Character.Animate.Disabled = true
+        local Char = player.Character
+        local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
+
+        if Hum then
+            for i,v in next, Hum:GetPlayingAnimationTracks() do
+                v:AdjustSpeed(0)
+            end
+        end
+
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,false)
+        player.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,false)
+        player.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+        onof.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+        onof.Text = "FLY: ON"
+
+        if player.Character:FindFirstChildOfClass("Humanoid").RigType == Enum.HumanoidRigType.R6 then
+            local plr = player
+            local torso = plr.Character.Torso
+            local flying = true
+            local deb = true
+            local ctrl = {f = 0, b = 0, l = 0, r = 0}
+            local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+            local maxspeed = 50
+            local current_fly_speed = 0
+
+            local bg = Instance.new("BodyGyro", torso)
+            bg.P = 9e4
+            bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bg.cframe = torso.CFrame
+            local bv = Instance.new("BodyVelocity", torso)
+            bv.velocity = Vector3.new(0,0.1,0)
+            bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+            
+            if nowe == true then
+                plr.Character.Humanoid.PlatformStand = true
+            end
+
+            while nowe == true or player.Character.Humanoid.Health == 0 do
+                RunService.RenderStepped:Wait()
+
+                if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                    current_fly_speed = current_fly_speed+.5+(current_fly_speed/maxspeed)
+                    if current_fly_speed > maxspeed then
+                        current_fly_speed = maxspeed
+                    end
+                elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and current_fly_speed ~= 0 then
+                    current_fly_speed = current_fly_speed-1
+                    if current_fly_speed < 0 then
+                        current_fly_speed = 0
+                    end
+                end
+
+                if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                    bv.velocity = ((Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - Workspace.CurrentCamera.CoordinateFrame.p))*current_fly_speed
+                    lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+                elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and current_fly_speed ~= 0 then
+                    bv.velocity = ((Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - Workspace.CurrentCamera.CoordinateFrame.p))*current_fly_speed
+                else
+                    bv.velocity = Vector3.new(0,0,0)
+                end
+                
+                bg.cframe = Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*current_fly_speed/maxspeed),0,0)
+            end
+            ctrl = {f = 0, b = 0, l = 0, r = 0}
+            lastctrl = {f = 0, b = 0, l = 0, r = 0}
+            current_fly_speed = 0
+            bg:Destroy()
+            bv:Destroy()
+            plr.Character.Humanoid.PlatformStand = false
+            player.Character.Animate.Disabled = false
+
+        else
+            local plr = player
+            local UpperTorso = plr.Character.UpperTorso or plr.Character.Torso
+            local flying = true
+            local deb = true
+            local ctrl = {f = 0, b = 0, l = 0, r = 0}
+            local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+            local maxspeed = 50
+            local current_fly_speed = 0
+
+            local bg = Instance.new("BodyGyro", UpperTorso)
+            bg.P = 9e4
+            bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bg.cframe = UpperTorso.CFrame
+            local bv = Instance.new("BodyVelocity", UpperTorso)
+            bv.velocity = Vector3.new(0,0.1,0)
+            bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+            
+            if nowe == true then
+                plr.Character.Humanoid.PlatformStand = true
+            end
+
+            while nowe == true or player.Character.Humanoid.Health == 0 do
+                wait()
+
+                if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                    current_fly_speed = current_fly_speed+.5+(current_fly_speed/maxspeed)
+                    if current_fly_speed > maxspeed then
+                        current_fly_speed = maxspeed
+                    end
+                elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and current_fly_speed ~= 0 then
+                    current_fly_speed = current_fly_speed-1
+                    if current_fly_speed < 0 then
+                        current_fly_speed = 0
+                    end
+                end
+
+                if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+                    bv.velocity = ((Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - Workspace.CurrentCamera.CoordinateFrame.p))*current_fly_speed
+                    lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+                elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and current_fly_speed ~= 0 then
+                    bv.velocity = ((Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - Workspace.CurrentCamera.CoordinateFrame.p))*current_fly_speed
+                else
+                    bv.velocity = Vector3.new(0,0,0)
+                end
+
+                bg.cframe = Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*current_fly_speed/maxspeed),0,0)
+            end
+            ctrl = {f = 0, b = 0, l = 0, r = 0}
+            lastctrl = {f = 0, b = 0, l = 0, r = 0}
+            current_fly_speed = 0
+            bg:Destroy()
+            bv:Destroy()
+            plr.Character.Humanoid.PlatformStand = false
+            player.Character.Animate.Disabled = false
+        end
+    end
+end)
+
+local tis
+
+up.MouseButton1Down:connect(function()
+    tis = up.MouseEnter:connect(function()
+        while tis do
+            wait()
+            local current_char = player.Character
+            if current_char and current_char:FindFirstChild("HumanoidRootPart") then
+                current_char.HumanoidRootPart.CFrame = current_char.HumanoidRootPart.CFrame * CFrame.new(0,1,0)
+            else
+                break
+            end
+        end
+    end)
+end)
+
+up.MouseLeave:connect(function()
+    if tis then
+        tis:Disconnect()
+        tis = nil
+    end
+end)
+
+local dis
+
+down.MouseButton1Down:connect(function()
+    dis = down.MouseEnter:connect(function()
+        while dis do
+            wait()
+            local current_char = player.Character
+            if current_char and current_char:FindFirstChild("HumanoidRootPart") then
+                current_char.HumanoidRootPart.CFrame = current_char.HumanoidRootPart.CFrame * CFrame.new(0,-1,0)
+            else
+                break
+            end
+        end
+    end)
+end)
+
+down.MouseLeave:connect(function()
+    if dis then
+        dis:Disconnect()
+        dis = nil
+    end
+end)
+
+player.CharacterAdded:Connect(function(char)
+    wait(0.7)
+    local hum_on_respawn = char:FindFirstChildOfClass("Humanoid")
+    if hum_on_respawn then
+        hum_on_respawn.PlatformStand = false
+    end
+    local animate_on_respawn = char:FindFirstChild("Animate")
+    if animate_on_respawn then
+        animate_on_respawn.Disabled = false
+    end
+    nowe = false
+    tpwalking = false
+    onof.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+    onof.Text = "FLY: OFF"
+    speed.Text = "1" -- Menggunakan .Text untuk TextBox
+    speeds = 1
+end)
+
+plus.MouseButton1Down:connect(function()
+    speeds = speeds + 1
+    speed.Text = tostring(speeds) -- Menggunakan .Text untuk TextBox, konversi ke string
+    if nowe == true then
+        tpwalking = false
+        wait(0.1)
+        tpwalking = true
+        for i = 1, speeds do
+            spawn(function()
+                local hb = RunService.Heartbeat
+                local character = player.Character
+                local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+                while tpwalking and hb:Wait() and character and humanoid and humanoid.Parent do
+                    if humanoid.MoveDirection.Magnitude > 0 then
+                        character:TranslateBy(humanoid.MoveDirection)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+mine.MouseButton1Down:connect(function()
+    if speeds == 1 then
+        speed.Text = 'cannot be less than 1'
+        wait(1)
+        speed.Text = tostring(speeds) -- Konversi ke string
+    else
+        speeds = speeds - 1
+        speed.Text = tostring(speeds) -- Konversi ke string
+        if nowe == true then
+            tpwalking = false
+            wait(0.1)
+            tpwalking = true
+            for i = 1, speeds do
+                spawn(function()
+                    local hb = RunService.Heartbeat
+                    local character = player.Character
+                    local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+                    while tpwalking and hb:Wait() and character and humanoid and humanoid.Parent do
+                        if humanoid.MoveDirection.Magnitude > 0 then
+                            character:TranslateBy(humanoid.MoveDirection)
+                        end
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- Event saat nilai TextBox diubah oleh user (misal: setelah enter atau kehilangan fokus)
+speed.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local newSpeed = tonumber(speed.Text) -- Coba konversi input ke angka
+        if newSpeed and newSpeed >= 1 then -- Pastikan input adalah angka valid dan >= 1
+            speeds = newSpeed
+            speed.Text = tostring(speeds) -- Update TextBox dengan angka yang divalidasi
+            -- Perbarui logika fly jika sedang aktif
+            if nowe == true then
+                tpwalking = false
+                wait(0.1)
+                tpwalking = true
+                for i = 1, speeds do
+                    spawn(function()
+                        local hb = RunService.Heartbeat
+                        local character = player.Character
+                        local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+                        while tpwalking and hb:Wait() and character and humanoid and humanoid.Parent do
+                            if humanoid.MoveDirection.Magnitude > 0 then
+                                character:TranslateBy(humanoid.MoveDirection)
+                            end
+                        end
+                    end)
+                end
+            end
+        else
+            -- Jika input tidak valid, tampilkan pesan error sebentar, lalu kembalikan ke nilai sebelumnya
+            local oldText = speed.Text
+            speed.Text = "Invalid!"
+            task.wait(1)
+            speed.Text = tostring(speeds) -- Kembalikan ke angka kecepatan yang valid
+        end
+    end
+end)
+
+closebutton.MouseButton1Click:Connect(function()
+    if nowe then
+        onof.MouseButton1Down:fire()
+    end
+    main:Destroy()
+end)
+
+mini.MouseButton1Click:Connect(function()
+    up.Visible = false
+    down.Visible = false
+    onof.Visible = false
+    plus.Visible = false
+    speed.Visible = false -- Sembunyikan TextBox kecepatan
+    mine.Visible = false
+    mini.Visible = false
+    mini2.Visible = true
+    Frame.BackgroundTransparency = 0
+    TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel.Position = UDim2.new(0, 8, 0, 0)
+    TextLabel.Size = UDim2.new(1, -70, 0, 30)
+    Frame:TweenSize(UDim2.new(0, 240, 0, 30), "Out", "Quad", 0.2, true)
+end)
+
+mini2.MouseButton1Click:Connect(function()
+    up.Visible = true
+    down.Visible = true
+    onof.Visible = true
+    plus.Visible = true
+    speed.Visible = true -- Tampilkan kembali TextBox kecepatan
+    mine.Visible = true
+    mini.Visible = true
+    mini2.Visible = false
+    Frame.BackgroundTransparency = 0
+    TextLabel.TextXAlignment = Enum.TextXAlignment.Center
+    TextLabel.Position = UDim2.new(0, 0, 0, 0)
+    TextLabel.Size = UDim2.new(1, 0, 0, 30)
+    Frame:TweenSize(UDim2.new(0, 240, 0, 200), "Out", "Quad", 0.2, true)
+end)
