@@ -1,0 +1,275 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "WallHopGUI"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame")
+frame.Parent = screenGui
+frame.Size = UDim2.new(0, 240, 0, 150)
+frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+frame.BorderSizePixel = 0
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.Active = true
+frame.Draggable = true
+frame.ClipsDescendants = true
+frame.Name = "WallHop_Frame"
+
+local frameCorner = Instance.new("UICorner", frame)
+frameCorner.CornerRadius = UDim.new(0, 12)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Parent = frame
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "WallHop"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 22
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Parent = frame
+statusLabel.Size = UDim2.new(1, 0, 0, 25)
+statusLabel.Position = UDim2.new(0, 0, 0, 40)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: Off"
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextSize = 20
+statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+statusLabel.TextScaled = false
+statusLabel.Name = "StatusLabel"
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Parent = frame
+toggleButton.Size = UDim2.new(0.8, 0, 0, 40)
+toggleButton.Position = UDim2.new(0.5, 0, 0, 80)
+toggleButton.AnchorPoint = Vector2.new(0.5, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+toggleButton.Text = "OFF"
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 24
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Name = "ToggleButton"
+
+local toggleCorner = Instance.new("UICorner", toggleButton)
+toggleCorner.CornerRadius = UDim.new(0, 8)
+
+local closeButton = Instance.new("TextButton")
+closeButton.Parent = frame
+closeButton.Size = UDim2.new(0, 24, 0, 24)
+closeButton.Position = UDim2.new(1, -28, 0, 4)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+closeButton.Text = "X"
+closeButton.Font = Enum.Font.GothamBold
+closeButton.TextSize = 20
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.Name = "CloseButton"
+
+local closeCorner = Instance.new("UICorner", closeButton)
+closeCorner.CornerRadius = UDim.new(0, 6)
+
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Parent = frame
+minimizeButton.Size = UDim2.new(0, 24, 0, 24)
+minimizeButton.Position = UDim2.new(1, -56, 0, 4) -- Di sebelah kiri tombol X
+minimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50) -- Warna abu-abu
+minimizeButton.Text = "-"
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.TextSize = 20
+minimizeButton.TextColor3 = Color3.new(1, 1, 1)
+minimizeButton.Name = "MinimizeButton"
+
+local minimizeCorner = Instance.new("UICorner", minimizeButton)
+minimizeCorner.CornerRadius = UDim.new(0, 6)
+
+local wallhopToggle = false
+local InfiniteJumpEnabled = true
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+local jumpConnection = nil
+
+local function getWallRaycastResult()
+    local character = player.Character
+    if not character then return nil end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return nil end
+
+    raycastParams.FilterDescendantsInstances = {character}
+    local detectionDistance = 2
+    local closestHit = nil
+    local minDistance = detectionDistance + 1
+    local hrpCF = humanoidRootPart.CFrame
+
+    for i = 0, 7 do
+        local angle = math.rad(i * 45)
+        local direction = (hrpCF * CFrame.Angles(0, angle, 0)).LookVector
+        local ray = Workspace:Raycast(humanoidRootPart.Position, direction * detectionDistance, raycastParams)
+        if ray and ray.Instance and ray.Distance < minDistance then
+            minDistance = ray.Distance
+            closestHit = ray
+        end
+    end
+
+    local blockCastSize = Vector3.new(1.5, 1, 0.5)
+    local blockCastOffset = CFrame.new(0, -1, -0.5)
+    local blockCastOriginCF = hrpCF * blockCastOffset
+    local blockCastDirection = hrpCF.LookVector
+    local blockCastDistance = 1.5
+    local blockResult = Workspace:Blockcast(blockCastOriginCF, blockCastSize, blockCastDirection * blockCastDistance, raycastParams)
+
+    if blockResult and blockResult.Instance and blockResult.Distance < minDistance then
+          minDistance = blockResult.Distance
+          closestHit = blockResult
+    end
+
+    return closestHit
+end
+
+local function executeWallJump()
+    if not InfiniteJumpEnabled then
+        return
+    end
+
+    local wallRayResult = getWallRaycastResult()
+    if not wallRayResult then return end
+
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    local camera = Workspace.CurrentCamera
+
+    if not (humanoid and rootPart and camera and humanoid:GetState() ~= Enum.HumanoidStateType.Dead) then
+        return
+    end
+
+    InfiniteJumpEnabled = false
+
+    local maxInfluenceAngleRight = math.rad(20)
+    local maxInfluenceAngleLeft  = math.rad(-100)
+
+    local wallNormal = wallRayResult.Normal
+    local baseDirectionAwayFromWall = Vector3.new(wallNormal.X, 0, wallNormal.Z).Unit
+    if baseDirectionAwayFromWall.Magnitude < 0.1 then
+          local dirToHit = (wallRayResult.Position - rootPart.Position) * Vector3.new(1,0,1)
+          baseDirectionAwayFromWall = -dirToHit.Unit
+          if baseDirectionAwayFromWall.Magnitude < 0.1 then
+              baseDirectionAwayFromWall = -rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+              if baseDirectionAwayFromWall.Magnitude > 0.1 then baseDirectionAwayFromWall = baseDirectionAwayFromWall.Unit end
+              if baseDirectionAwayFromWall.Magnitude < 0.1 then baseDirectionAwayFromWall = Vector3.new(0,0,1) end
+          end
+    end
+    baseDirectionAwayFromWall = Vector3.new(baseDirectionAwayFromWall.X, 0, baseDirectionAwayFromWall.Z).Unit
+    if baseDirectionAwayFromWall.Magnitude < 0.1 then baseDirectionAwayFromWall = Vector3.new(0,0,1) end
+
+    local cameraLook = camera.CFrame.LookVector
+    local horizontalCameraLook = Vector3.new(cameraLook.X, 0, cameraLook.Z).Unit
+    if horizontalCameraLook.Magnitude < 0.1 then horizontalCameraLook = baseDirectionAwayFromWall end
+
+    local dot = math.clamp(baseDirectionAwayFromWall:Dot(horizontalCameraLook), -1, 1)
+    local angleBetween = math.acos(dot)
+    local cross = baseDirectionAwayFromWall:Cross(horizontalCameraLook)
+    local rotationSign = -math.sign(cross.Y)
+    if rotationSign == 0 then angleBetween = 0 end
+
+    local actualInfluenceAngle
+    if rotationSign == 1 then
+        actualInfluenceAngle = math.min(angleBetween, maxInfluenceAngleRight)
+    elseif rotationSign == -1 then
+        actualInfluenceAngle = math.min(angleBetween, maxInfluenceAngleLeft)
+    else
+        actualInfluenceAngle = 0
+    end
+
+    local adjustmentRotation = CFrame.Angles(0, actualInfluenceAngle * rotationSign, 0)
+    local initialTargetLookDirection = adjustmentRotation * baseDirectionAwayFromWall
+
+    rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + initialTargetLookDirection)
+    RunService.Heartbeat:Wait()
+
+    local didJump = false
+    if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+          humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+          didJump = true
+          print("Performed jump away from wall (Manual).")
+
+          rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, -1, 0)
+          task.wait(0.15)
+          rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, 1, 0)
+          print("Applied cosmetic rotation flick (-1/+1 radians) (Manual).")
+    end
+
+    if didJump then
+          local directionTowardsWall = -baseDirectionAwayFromWall
+          task.wait(0.05)
+          rootPart.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + directionTowardsWall)
+          print("Rotated back towards wall after jump (Manual).")
+    end
+
+    task.wait(0.1)
+    InfiniteJumpEnabled = true
+end
+
+toggleButton.MouseButton1Click:Connect(function()
+    wallhopToggle = not wallhopToggle
+    if wallhopToggle then
+        statusLabel.Text = "Status: ON"
+        statusLabel.TextColor3 = Color3.fromRGB(0, 180, 0)
+        toggleButton.Text = "ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
+    else
+        statusLabel.Text = "Status: OFF"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+        toggleButton.Text = "OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+    end
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    if jumpConnection then jumpConnection:Disconnect(); jumpConnection = nil end
+
+    wallhopToggle = false
+    if screenGui and screenGui.Parent then screenGui:Destroy() end
+
+    frame = nil; screenGui = nil
+    print("WallHop GUI Destroyed.")
+end)
+
+local isMinimized = false
+local originalFrameSize = frame.Size
+local originalToggleButtonPosition = toggleButton.Position
+local originalStatusLabelPosition = statusLabel.Position
+
+minimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+
+    if isMinimized then
+        originalFrameSize = frame.Size
+        originalToggleButtonPosition = toggleButton.Position
+        originalStatusLabelPosition = statusLabel.Position
+        frame:TweenSize(UDim2.new(0, 240, 0, 30), "Out", "Quad", 0.2, true) -- Hanya tinggi judul
+        titleLabel.Visible = true -- Tetap terlihat
+        statusLabel.Visible = false -- Sembunyikan status
+        toggleButton.Visible = false -- Sembunyikan toggle
+        minimizeButton.Text = "+" -- Ubah teks menjadi "+"
+    else
+        frame:TweenSize(originalFrameSize, "Out", "Quad", 0.2, true)
+        statusLabel.Visible = true
+        toggleButton.Visible = true
+        minimizeButton.Text = "-" -- Ubah teks kembali menjadi "-"
+    end
+end)
+
+jumpConnection = UserInputService.JumpRequest:Connect(function()
+    if not wallhopToggle then return end
+    executeWallJump()
+end)
