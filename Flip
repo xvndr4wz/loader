@@ -205,7 +205,6 @@ end)
 
 CloseButton.MouseButton1Click:Connect(function()
     mainGui:Destroy()
-    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
 end)
 
 local dragging, offset
@@ -226,5 +225,3 @@ UserInputService.InputChanged:Connect(function(input)
         frame.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
     end
 end)
-
-StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
