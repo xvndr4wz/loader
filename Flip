@@ -1,0 +1,230 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local TextService = game:GetService("TextService")
+local player = Players.LocalPlayer
+
+local GUI_WIDTH = 200
+local guiPos = UDim2.new(0.5, -GUI_WIDTH / 2, 0.5, -70)
+local isMinimized = false
+
+local MINIMIZED_HEIGHT = 30
+local MAXIMIZED_HEIGHT = 140
+local BUTTON_HEIGHT = 28
+local ROW_SPACING = 8
+local UI_PADDING = 8
+local HEADER_HEIGHT = 30
+
+local COLOR_FRAME_BACKGROUND = Color3.fromRGB(15, 15, 15)
+local COLOR_TEXT_PRIMARY = Color3.new(1, 1, 1)
+local COLOR_BUTTON_ACTION_PRIMARY = Color3.fromRGB(50, 50, 50)
+local COLOR_BUTTON_DELETE = Color3.fromRGB(200, 0, 0)
+local COLOR_BORDER_RADIUS = UDim.new(0, 12)
+local COLOR_BUTTON_RADIUS = UDim.new(0, 6)
+
+local function performFlip(character, flipDirection)
+    local hum = character:WaitForChild("Humanoid")
+    local rootpart = character:WaitForChild("HumanoidRootPart")
+
+    if hum.Health > 0 and hum.FloorMaterial ~= Enum.Material.Air then
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        hum.Sit = true
+
+        local lookvector = rootpart.CFrame.LookVector
+        local spindirection = Vector3.new(-lookvector.Z, 0, lookvector.X)
+
+        local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+        if torso then
+            local bodyAngularVelocity = Instance.new("BodyAngularVelocity", torso)
+            bodyAngularVelocity.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            bodyAngularVelocity.AngularVelocity = spindirection * (flipDirection * 10)
+            bodyAngularVelocity.P = 1000
+
+            task.wait(0.4)
+            bodyAngularVelocity:Destroy()
+        end
+
+        task.wait(0.2)
+        hum.Sit = false
+    end
+end
+
+if game.CoreGui:FindFirstChild("FlipGUI") then
+    game.CoreGui.FlipGUI:Destroy()
+end
+
+local mainGui = Instance.new("ScreenGui")
+mainGui.Name = "FlipGUI"
+mainGui.Parent = game.CoreGui
+mainGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame")
+frame.Parent = mainGui
+frame.Size = UDim2.new(0, GUI_WIDTH, 0, MAXIMIZED_HEIGHT)
+frame.Position = guiPos
+frame.BackgroundColor3 = COLOR_FRAME_BACKGROUND
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.ClipsDescendants = true
+Instance.new("UICorner", frame).CornerRadius = COLOR_BORDER_RADIUS
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Parent = frame
+TitleLabel.Size = UDim2.new(1, -2 * UI_PADDING, 0, HEADER_HEIGHT)
+TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "🤸 Flip"
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 20
+TitleLabel.TextColor3 = COLOR_TEXT_PRIMARY
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.TextWrapped = false
+
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "Minimize"
+MinimizeButton.Parent = frame
+MinimizeButton.Size = UDim2.new(0, 24, 0, 24)
+MinimizeButton.Position = UDim2.new(1, -56, 0, 4)
+MinimizeButton.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
+MinimizeButton.Text = "-"
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.TextSize = 20
+MinimizeButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", MinimizeButton).CornerRadius = COLOR_BUTTON_RADIUS
+MinimizeButton.Visible = true
+
+local MaximizeButton = Instance.new("TextButton")
+MaximizeButton.Name = "Maximize"
+MaximizeButton.Parent = frame
+MaximizeButton.Size = UDim2.new(0, 24, 0, 24)
+MaximizeButton.Position = UDim2.new(1, -56, 0, 4)
+MaximizeButton.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
+MaximizeButton.Text = "+"
+MaximizeButton.Font = Enum.Font.GothamBold
+MaximizeButton.TextSize = 20
+MaximizeButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", MaximizeButton).CornerRadius = COLOR_BUTTON_RADIUS
+MaximizeButton.Visible = false
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "Close"
+CloseButton.Parent = frame
+CloseButton.Size = UDim2.new(0, 24, 0, 24)
+CloseButton.Position = UDim2.new(1, -28, 0, 4)
+CloseButton.BackgroundColor3 = COLOR_BUTTON_DELETE
+CloseButton.Text = "X"
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 20
+CloseButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", CloseButton).CornerRadius = COLOR_BUTTON_RADIUS
+
+local ContentFrame = Instance.new("Frame", frame)
+ContentFrame.Size = UDim2.new(1, 0, 1, -HEADER_HEIGHT)
+ContentFrame.Position = UDim2.new(0, 0, 0, HEADER_HEIGHT)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.ClipsDescendants = true
+
+local function createButton(parent, text, yOffset, action)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1, -2 * UI_PADDING, 0, BUTTON_HEIGHT)
+    btn.Position = UDim2.new(0, UI_PADDING, 0, yOffset)
+    btn.Text = text
+    btn.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
+    btn.TextColor3 = COLOR_TEXT_PRIMARY
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    Instance.new("UICorner", btn).CornerRadius = COLOR_BUTTON_RADIUS
+
+    local originalColor = COLOR_BUTTON_ACTION_PRIMARY
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = originalColor:Lerp(Color3.new(1,1,1), 0.2)
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = originalColor
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        local char = player.Character
+        if char then
+            action(char)
+        end
+    end)
+    return btn
+end
+
+local currentYOffset = UI_PADDING
+local frontflipBtn = createButton(ContentFrame, "Front Flip", currentYOffset, function(char) performFlip(char, -1) end)
+
+currentYOffset = currentYOffset + BUTTON_HEIGHT + ROW_SPACING
+local backflipBtn = createButton(ContentFrame, "Back Flip", currentYOffset, function(char) performFlip(char, 1) end)
+
+local function calculateMinimizedWidth()
+    local titleTextWidth = TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, HEADER_HEIGHT)).X
+    local buttonWidth = 24
+    local buttonSpacing = 4
+    local titleLeftPadding = UI_PADDING
+    return titleLeftPadding + titleTextWidth + buttonSpacing + buttonWidth + buttonSpacing + buttonWidth + UI_PADDING
+end
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = true
+    ContentFrame.Visible = false
+    MinimizeButton.Visible = false
+    MaximizeButton.Visible = true
+
+    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
+    TitleLabel.Size = UDim2.new(0, TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, HEADER_HEIGHT)).X, 0, HEADER_HEIGHT)
+
+    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
+    local properties = {
+        Size = UDim2.new(0, calculateMinimizedWidth(), 0, MINIMIZED_HEIGHT)
+    }
+
+    local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
+    tween:Play()
+end)
+
+MaximizeButton.MouseButton1Click:Connect(function()
+    isMinimized = false
+    ContentFrame.Visible = true
+    MinimizeButton.Visible = true
+    MaximizeButton.Visible = false
+
+    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
+    TitleLabel.Size = UDim2.new(1, -2 * UI_PADDING, 0, HEADER_HEIGHT)
+
+    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
+    local properties = {
+        Size = UDim2.new(0, GUI_WIDTH, 0, MAXIMIZED_HEIGHT)
+    }
+
+    local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
+    tween:Play()
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    mainGui:Destroy()
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
+end)
+
+local dragging, offset
+frame.InputBegan:Connect(function(input)
+    if not isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        dragging = true
+        offset = input.Position - frame.AbsolutePosition
+        input:Capture()
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        frame.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
+    end
+end)
+
+StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
