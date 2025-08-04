@@ -1,0 +1,279 @@
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local TextService = game:GetService("TextService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local Backpack = LocalPlayer:WaitForChild("Backpack")
+
+local GUI_WIDTH = 200
+local guiPos = UDim2.new(0.5, -GUI_WIDTH / 2, 0.5, -55)
+
+local MINIMIZED_HEIGHT = 30
+local MAXIMIZED_HEIGHT = 120
+local BUTTON_HEIGHT = 24
+local UI_PADDING = 8
+local HEADER_HEIGHT = 30
+local BUTTON_WIDTH = 24
+local BUTTON_SPACING = 4
+
+local COLOR_FRAME_BACKGROUND = Color3.fromRGB(15, 15, 15)
+local COLOR_TEXT_PRIMARY = Color3.new(1, 1, 1)
+local COLOR_BUTTON_ACTION_PRIMARY = Color3.fromRGB(50, 50, 50)
+local COLOR_BUTTON_DELETE = Color3.fromRGB(200, 0, 0)
+local COLOR_BUTTON_TOGGLE_ON = Color3.fromRGB(0, 180, 80)
+local COLOR_BUTTON_TOGGLE_OFF = Color3.fromRGB(200, 0, 0)
+local COLOR_BORDER_RADIUS = UDim.new(0, 12)
+local COLOR_BUTTON_RADIUS = UDim.new(0, 6)
+
+local jorkin = false
+local track = nil
+
+local function isR15()
+	return Humanoid.RigType == Enum.HumanoidRigType.R15
+end
+
+local function stopJerk()
+	jorkin = false
+	if track then
+		track:Stop()
+		track:Destroy()
+		track = nil
+	end
+end
+
+local function startColi()
+	jorkin = true
+	task.spawn(function()
+		while jorkin do
+			task.wait()
+			if not track then
+				local anim = Instance.new("Animation")
+				anim.AnimationId = isR15() and "rbxassetid://698251653" or "rbxassetid://72042024"
+				track = Humanoid:LoadAnimation(anim)
+			end
+			track:Play()
+			track:AdjustSpeed(isR15() and 0.7 or 0.65)
+			track.TimePosition = 0.6
+			task.wait(0.001)
+			while track and track.TimePosition < (isR15() and 0.7 or 0.65) and jorkin do
+				task.wait(0.001)
+			end
+			if track then
+				track:Stop()
+				track = nil
+			end
+		end
+	end)
+end
+
+Humanoid.Died:Connect(stopJerk)
+
+local function createTool()
+    if Backpack:FindFirstChild("Coli💦") or Character:FindFirstChild("Coli") then return end
+
+    local tool = Instance.new("Tool")
+    tool.Name = "Coli💦"
+    tool.RequiresHandle = false
+    tool.Parent = Backpack
+
+    tool.Equipped:Connect(function()
+        stopJerk()
+        startColi()
+    end)
+
+    tool.Unequipped:Connect(stopJerk)
+end
+
+if game.CoreGui:FindFirstChild("JerkGUI") then
+    game.CoreGui.JerkGUI:Destroy()
+end
+
+local mainGui = Instance.new("ScreenGui")
+mainGui.Name = "JerkGUI"
+mainGui.Parent = game:GetService("CoreGui")
+mainGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame")
+frame.Parent = mainGui
+frame.Size = UDim2.new(0, GUI_WIDTH, 0, MAXIMIZED_HEIGHT)
+frame.Position = guiPos
+frame.BackgroundColor3 = COLOR_FRAME_BACKGROUND
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.ClipsDescendants = true
+Instance.new("UICorner", frame).CornerRadius = COLOR_BORDER_RADIUS
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Parent = frame
+TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Coli💦"
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 20
+TitleLabel.TextColor3 = COLOR_TEXT_PRIMARY
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.TextWrapped = false
+
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "Minimize"
+MinimizeButton.Parent = frame
+MinimizeButton.Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_WIDTH)
+MinimizeButton.Position = UDim2.new(1, -(BUTTON_WIDTH + BUTTON_SPACING) * 2 - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
+MinimizeButton.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
+MinimizeButton.Text = "-"
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.TextSize = 20
+MinimizeButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", MinimizeButton).CornerRadius = COLOR_BUTTON_RADIUS
+MinimizeButton.Visible = true
+
+local MaximizeButton = Instance.new("TextButton")
+MaximizeButton.Name = "Maximize"
+MaximizeButton.Parent = frame
+MaximizeButton.Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_WIDTH)
+MaximizeButton.Position = UDim2.new(1, -(BUTTON_WIDTH + BUTTON_SPACING) * 2 - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
+MaximizeButton.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
+MaximizeButton.Text = "+"
+MaximizeButton.Font = Enum.Font.GothamBold
+MaximizeButton.TextSize = 20
+MaximizeButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", MaximizeButton).CornerRadius = COLOR_BUTTON_RADIUS
+MaximizeButton.Visible = false
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "Close"
+CloseButton.Parent = frame
+CloseButton.Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_WIDTH)
+CloseButton.Position = UDim2.new(1, -BUTTON_WIDTH - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
+CloseButton.BackgroundColor3 = COLOR_BUTTON_DELETE
+CloseButton.Text = "X"
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 20
+CloseButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", CloseButton).CornerRadius = COLOR_BUTTON_RADIUS
+
+local ContentFrame = Instance.new("Frame", frame)
+ContentFrame.Size = UDim2.new(1, 0, 1, -HEADER_HEIGHT)
+ContentFrame.Position = UDim2.new(0, 0, 0, HEADER_HEIGHT)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.ClipsDescendants = true
+
+local JerkToggleButton = Instance.new("TextButton", ContentFrame)
+JerkToggleButton.Name = "JerkToggleButton"
+JerkToggleButton.Size = UDim2.new(1, -2 * UI_PADDING, 0, BUTTON_HEIGHT)
+JerkToggleButton.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
+JerkToggleButton.Text = "Coli: OFF"
+JerkToggleButton.BackgroundColor3 = COLOR_BUTTON_TOGGLE_OFF
+JerkToggleButton.TextColor3 = COLOR_TEXT_PRIMARY
+JerkToggleButton.Font = Enum.Font.GothamBold
+JerkToggleButton.TextSize = 14
+Instance.new("UICorner", JerkToggleButton).CornerRadius = COLOR_BUTTON_RADIUS
+
+local function onJerkToggle()
+    if jorkin then
+        stopJerk()
+        JerkToggleButton.Text = "Coli: OFF"
+        JerkToggleButton.BackgroundColor3 = COLOR_BUTTON_TOGGLE_OFF
+    else
+        stopJerk()
+        startColi()
+        JerkToggleButton.Text = "Coli: ON"
+        JerkToggleButton.BackgroundColor3 = COLOR_BUTTON_TOGGLE_ON
+    end
+end
+JerkToggleButton.MouseButton1Click:Connect(onJerkToggle)
+
+local ToolsButton = Instance.new("TextButton", ContentFrame)
+ToolsButton.Name = "ToolsButton"
+ToolsButton.Size = UDim2.new(1, -2 * UI_PADDING, 0, BUTTON_HEIGHT)
+ToolsButton.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING + BUTTON_HEIGHT + UI_PADDING)
+ToolsButton.Text = "Get Coli Tool💦"
+ToolsButton.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
+ToolsButton.TextColor3 = COLOR_TEXT_PRIMARY
+ToolsButton.Font = Enum.Font.GothamBold
+ToolsButton.TextSize = 14
+Instance.new("UICorner", ToolsButton).CornerRadius = COLOR_BUTTON_RADIUS
+
+ToolsButton.MouseButton1Click:Connect(createTool)
+
+local function calculateMinimizedWidth()
+    local titleTextWidth = TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, HEADER_HEIGHT)).X
+    return UI_PADDING + titleTextWidth + BUTTON_SPACING + BUTTON_WIDTH + BUTTON_SPACING + BUTTON_WIDTH + UI_PADDING
+end
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = true
+    ContentFrame.Visible = false
+    MinimizeButton.Visible = false
+    MaximizeButton.Visible = true
+
+    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
+    TitleLabel.Size = UDim2.new(0, TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, HEADER_HEIGHT)).X, 0, HEADER_HEIGHT)
+
+    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
+    local properties = {
+        Size = UDim2.new(0, calculateMinimizedWidth(), 0, MINIMIZED_HEIGHT)
+    }
+    local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
+    tween:Play()
+    
+    local newMaximizePositionX = UI_PADDING + TitleLabel.Size.X.Offset + BUTTON_SPACING
+    MaximizeButton.Position = UDim2.new(0, newMaximizePositionX, 0, (MINIMIZED_HEIGHT - BUTTON_WIDTH) / 2)
+    
+    local newClosePositionX = newMaximizePositionX + BUTTON_WIDTH + BUTTON_SPACING
+    CloseButton.Position = UDim2.new(0, newClosePositionX, 0, (MINIMIZED_HEIGHT - BUTTON_WIDTH) / 2)
+end)
+
+MaximizeButton.MouseButton1Click:Connect(function()
+    isMinimized = false
+    ContentFrame.Visible = true
+    MinimizeButton.Visible = true
+    MaximizeButton.Visible = false
+
+    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
+    TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+
+    local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
+    local properties = {
+        Size = UDim2.new(0, GUI_WIDTH, 0, MAXIMIZED_HEIGHT)
+    }
+
+    local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
+    tween:Play()
+
+    MinimizeButton.Position = UDim2.new(1, -(BUTTON_WIDTH + BUTTON_SPACING) * 2 - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
+    CloseButton.Position = UDim2.new(1, -BUTTON_WIDTH - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    stopJerk()
+    mainGui:Destroy()
+end)
+
+frame.InputBegan:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and frame.Draggable then
+        local _, pos = frame.AbsolutePosition:Sub(input.Position)
+        frame:SetAttribute("DragOffset", pos)
+        input:Capture()
+    end
+end)
+
+frame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        local dragOffset = frame:GetAttribute("DragOffset")
+        if dragOffset then
+            local newPosition = input.Position + dragOffset
+            frame.Position = UDim2.new(0, newPosition.X, 0, newPosition.Y)
+        end
+    end
+end)
+
+frame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        frame:SetAttribute("DragOffset", nil)
+    end
+end)
