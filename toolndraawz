@@ -1,0 +1,612 @@
+Local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local selectedPart, selectedHighlight = nil, nil
+local consoleList, deletedParts, freezeeParts = {}, {}, {}
+local autoParts = {}
+local savedPlayerPositions = {}
+local currentTeleportIndex = 1
+local guiPos = UDim2.new(0.5, 0, 0.5, 0)
+local clickActive = false
+
+local UI_PADDING = 10
+local BUTTON_HEIGHT = 28
+local ROW_SPACING = 10
+local HEADER_HEIGHT = 30
+local STATS_LABEL_HEIGHT = 20
+
+local MINIMIZED_HEIGHT = 30
+local MINIMIZED_TITLE_LEFT_PADDING = 8
+local BUTTON_MIN_MAX_WIDTH = 24
+local BUTTON_CLOSE_WIDTH = 24
+local BUTTON_HEADER_SPACING = 5
+
+local COLOR_FRAME_BACKGROUND = Color3.fromRGB(15, 15, 15)
+local COLOR_TEXT_PRIMARY = Color3.new(1, 1, 1)
+local COLOR_TEXT_ACCENT = Color3.fromRGB(255, 150, 0)
+
+local COLOR_BUTTON_BLUE = Color3.fromRGB(0, 100, 200)
+local COLOR_BUTTON_GRAY = Color3.fromRGB(50, 50, 50)
+local COLOR_BUTTON_RED = Color3.fromRGB(180, 0, 0)
+local COLOR_BUTTON_PURPLE = Color3.fromRGB(90, 90, 190)
+local COLOR_BUTTON_GREEN = Color3.fromRGB(0, 180, 80)
+local COLOR_BUTTON_ORANGE = Color3.fromRGB(220, 100, 0)
+
+local toggleAntiTP = false
+local lastPosition = nil
+local antiTPBackConnection = nil
+local threshold = 10
+local isTeleportingWithScript = false
+
+local toggleNoClip = false
+local noClipConnection = nil
+
+if not player:FindFirstChild("PlayerGui") then
+    local newPlayerGui = Instance.new("PlayerGui")
+    newPlayerGui.Name = "PlayerGui"
+    newPlayerGui.Parent = player
+end
+
+if player.PlayerGui:FindFirstChild("PartManipulatorGUI") then
+    player.PlayerGui.PartManipulatorGUI:Destroy()
+end
+
+local mainGui = Instance.new("ScreenGui")
+mainGui.Name = "PartManipulatorGUI"
+mainGui.Parent = player.PlayerGui
+mainGui.ResetOnSpawn = false
+mainGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local frame = Instance.new("Frame")
+frame.Parent = mainGui
+frame.Size = UDim2.new(0, 270, 0, 100)
+frame.Position = guiPos
+frame.BackgroundColor3 = COLOR_FRAME_BACKGROUND
+frame.BorderSizePixel = 0
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.Active = true
+frame.Draggable = true
+frame.ClipsDescendants = true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+local connections = {}
+local dragging = false
+local offset = Vector2.zero
+
+connections[#connections+1] = frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        offset = input.Position - frame.AbsolutePosition
+    end
+end)
+connections[#connections+1] = UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+connections[#connections+1] = UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        frame.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
+        guiPos = frame.Position
+    end
+end)
+
+local TitleLabel = Instance.new("TextLabel", frame)
+TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+TitleLabel.Position = UDim2.new(0, MINIMIZED_TITLE_LEFT_PADDING, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚙️ Tools Ndraawz"
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 22
+TitleLabel.TextColor3 = COLOR_TEXT_PRIMARY
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.TextWrapped = false
+TitleLabel.AutoLocalize = false
+TitleLabel.ClipsDescendants = false
+
+local CloseButton = Instance.new("TextButton", frame)
+CloseButton.Name = "Close"
+CloseButton.Size = UDim2.new(0, BUTTON_CLOSE_WIDTH, 0, BUTTON_CLOSE_WIDTH)
+CloseButton.Position = UDim2.new(1, -BUTTON_CLOSE_WIDTH - BUTTON_HEADER_SPACING, 0, 4)
+CloseButton.BackgroundColor3 = COLOR_BUTTON_RED
+CloseButton.Text = "X"
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 20
+CloseButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(0, 6)
+
+local MinimizeButton = Instance.new("TextButton", frame)
+MinimizeButton.Name = "Minimize"
+MinimizeButton.Size = UDim2.new(0, BUTTON_MIN_MAX_WIDTH, 0, BUTTON_MIN_MAX_WIDTH)
+MinimizeButton.Position = UDim2.new(1, -BUTTON_CLOSE_WIDTH - BUTTON_MIN_MAX_WIDTH - (BUTTON_HEADER_SPACING * 2), 0, 4)
+MinimizeButton.BackgroundColor3 = COLOR_BUTTON_GRAY
+MinimizeButton.Text = "-"
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.TextSize = 20
+MinimizeButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", MinimizeButton).CornerRadius = UDim.new(0, 6)
+MinimizeButton.Visible = true
+
+local MaximizeButton = Instance.new("TextButton", frame)
+MaximizeButton.Name = "Maximize"
+MaximizeButton.Size = UDim2.new(0, BUTTON_MIN_MAX_WIDTH, 0, BUTTON_MIN_MAX_WIDTH)
+MaximizeButton.Position = MinimizeButton.Position
+MaximizeButton.BackgroundColor3 = COLOR_BUTTON_GRAY
+MaximizeButton.Text = "+"
+MaximizeButton.Font = Enum.Font.GothamBold
+MaximizeButton.TextSize = 20
+MaximizeButton.TextColor3 = COLOR_TEXT_PRIMARY
+Instance.new("UICorner", MaximizeButton).CornerRadius = UDim.new(0, 6)
+MaximizeButton.Visible = false
+
+local ContentFrame = Instance.new("Frame", frame)
+ContentFrame.Size = UDim2.new(1, 0, 1, -HEADER_HEIGHT)
+ContentFrame.Position = UDim2.new(0, 0, 0, HEADER_HEIGHT)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.ClipsDescendants = true
+
+local function makeLabel(parent, text, yOffset, height, color, bold, xAlignment)
+    local lbl = Instance.new("TextLabel", parent)
+    lbl.Size = UDim2.new(1, -2 * UI_PADDING, 0, height or 20)
+    lbl.Position = UDim2.new(0, UI_PADDING, 0, yOffset)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = color or COLOR_TEXT_PRIMARY
+    lbl.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+    lbl.TextSize = 14
+    lbl.TextWrapped = true
+    lbl.TextXAlignment = xAlignment or Enum.TextXAlignment.Left
+    lbl.TextYAlignment = Enum.TextYAlignment.Top
+    return lbl
+end
+
+local partName = makeLabel(ContentFrame, "Selected:", UI_PADDING, HEADER_HEIGHT, COLOR_TEXT_ACCENT, true)
+
+local function createButton(parent, text, xPosScale, yOffset, widthScale, height, color)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(widthScale, 0, 0, height)
+    btn.Position = UDim2.new(xPosScale, 0, 0, yOffset)
+    btn.Text = text
+    btn.BackgroundColor3 = color
+    btn.TextColor3 = COLOR_TEXT_PRIMARY
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+
+    local originalColor = color
+    connections[#connections+1] = btn.MouseEnter:Connect(function() btn.BackgroundColor3 = originalColor:Lerp(Color3.new(1,1,1), 0.2) end)
+    connections[#connections+1] = btn.MouseLeave:Connect(function() btn.BackgroundColor3 = originalColor end)
+    return btn
+end
+
+local currentYOffset = UI_PADDING + HEADER_HEIGHT + ROW_SPACING
+
+local yesOrSelectBtn = createButton(ContentFrame, "Select", 0.05, currentYOffset, 0.28, BUTTON_HEIGHT, COLOR_BUTTON_BLUE)
+local noBtn = createButton(ContentFrame, "No", 0.36, currentYOffset, 0.28, BUTTON_HEIGHT, COLOR_BUTTON_GRAY)
+local delBtn = createButton(ContentFrame, "Delete", 0.67, currentYOffset, 0.28, BUTTON_HEIGHT, COLOR_BUTTON_RED)
+
+currentYOffset = currentYOffset + BUTTON_HEIGHT + ROW_SPACING
+
+local copyBtn = createButton(ContentFrame, "Copy Part", 0.05, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_PURPLE)
+local restoreBtn = createButton(ContentFrame, "Restore", 0.51, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_BLUE)
+
+currentYOffset = currentYOffset + BUTTON_HEIGHT + ROW_SPACING
+
+local freezeBtn = createButton(ContentFrame, "Freeze", 0.05, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_BLUE)
+local autoBtn = createButton(ContentFrame, "Auto", 0.51, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_GREEN)
+
+currentYOffset = currentYOffset + BUTTON_HEIGHT + ROW_SPACING
+
+local unfreezeBtn = createButton(ContentFrame, "Unfreeze", 0.05, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_ORANGE)
+local unautoBtn = createButton(ContentFrame, "Unauto", 0.51, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_RED)
+
+currentYOffset = currentYOffset + BUTTON_HEIGHT + ROW_SPACING
+
+local savePosBtn = createButton(ContentFrame, "Save Pos", 0.05, currentYOffset, 0.28, BUTTON_HEIGHT, COLOR_BUTTON_BLUE)
+local teleportBtn = createButton(ContentFrame, "Teleport", 0.36, currentYOffset, 0.28, BUTTON_HEIGHT, COLOR_BUTTON_GREEN)
+local clearPosBtn = createButton(ContentFrame, "Clear Pos", 0.67, currentYOffset, 0.28, BUTTON_HEIGHT, COLOR_BUTTON_RED)
+
+currentYOffset = currentYOffset + BUTTON_HEIGHT + ROW_SPACING
+
+local antiTPBtn = createButton(ContentFrame, "Anti TP Back: OFF", 0.05, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_GRAY)
+local noClipBtn = createButton(ContentFrame, "NoClip: OFF", 0.51, currentYOffset, 0.44, BUTTON_HEIGHT, COLOR_BUTTON_GRAY)
+
+local statsLabel = makeLabel(ContentFrame, "Deleted: 0 | Freeze: 0 | Auto: 0 | Saved Pos: 0", currentYOffset + BUTTON_HEIGHT + ROW_SPACING, STATS_LABEL_HEIGHT, nil, true)
+
+local MAXIMIZED_TOTAL_HEIGHT = currentYOffset + BUTTON_HEIGHT + ROW_SPACING + STATS_LABEL_HEIGHT + UI_PADDING + 16
+frame.Size = UDim2.new(0, 270, 0, MAXIMIZED_TOTAL_HEIGHT)
+
+local function updateLabels()
+    local freezeCount = 0
+    for _,_ in pairs(freezeeParts) do freezeCount += 1 end
+
+    local savedPosCount = #savedPlayerPositions
+    
+    local newText = string.format("Deleted: %d | Freeze: %d | Auto: %d | Saved: %d",
+        #deletedParts,
+        freezeCount,
+        #autoParts,
+        savedPosCount
+    )
+    statsLabel.Text = newText
+end
+
+local function clearHighlight()
+    if selectedHighlight then selectedHighlight:Destroy() selectedHighlight = nil end
+end
+
+local function showPrompt(part)
+    selectedPart = part
+    partName.Text = "Selected: " .. part:GetFullName()
+    mainGui.Enabled = true
+    clearHighlight()
+    local hl = Instance.new("Highlight", part)
+    hl.FillColor = Color3.fromRGB(0, 170, 255)
+    hl.OutlineColor = Color3.new(1, 1, 1)
+    hl.FillTransparency = 0.4
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    selectedHighlight = hl
+end
+
+local function hidePrompt()
+    selectedPart = nil
+    partName.Text = "Selected:"
+    clearHighlight()
+end
+
+local function activateSelectMode()
+    clickActive = true
+    yesOrSelectBtn.Text = "Yes"
+    yesOrSelectBtn.BackgroundColor3 = COLOR_BUTTON_BLUE
+    hidePrompt()
+end
+
+local function deactivateSelectMode()
+    clickActive = false
+    yesOrSelectBtn.Text = "Select"
+    yesOrSelectBtn.BackgroundColor3 = COLOR_BUTTON_BLUE
+    hidePrompt()
+end
+
+local function setNoclip(char, enabled)
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CanCollide = not enabled
+        end
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part ~= hrp then
+                part.CanCollide = not enabled
+            end
+        end
+    end
+end
+
+connections[#connections+1] = player.CharacterAdded:Connect(function(character)
+    if toggleNoClip then
+        setNoclip(character, true)
+    end
+end)
+
+connections[#connections+1] = mouse.Button1Down:Connect(function()
+    if not clickActive then return end
+    local target = mouse.Target
+    if target and target:IsA("BasePart") then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character and target:IsDescendantOf(plr.Character) then
+                hidePrompt()
+                return
+            end
+        end
+        showPrompt(target)
+    end
+end)
+
+connections[#connections+1] = yesOrSelectBtn.MouseButton1Click:Connect(function()
+    if yesOrSelectBtn.Text == "Select" then
+        activateSelectMode()
+    elseif yesOrSelectBtn.Text == "Yes" then
+        if selectedPart then
+            if not table.find(consoleList, selectedPart) then
+                table.insert(consoleList, selectedPart)
+                print("[✔] Saved Part: " .. selectedPart:GetFullName())
+            end
+        end
+        deactivateSelectMode()
+    end
+end)
+
+connections[#connections+1] = noBtn.MouseButton1Click:Connect(function()
+    deactivateSelectMode()
+end)
+
+connections[#connections+1] = delBtn.MouseButton1Click:Connect(function()
+    if selectedPart then
+        table.insert(deletedParts, {instance = selectedPart:Clone(), parent = selectedPart.Parent, cframe = selectedPart.CFrame})
+        selectedPart:Destroy()
+        updateLabels()
+    end
+    hidePrompt()
+end)
+
+connections[#connections+1] = copyBtn.MouseButton1Click:Connect(function()
+    if selectedPart then setclipboard(selectedPart:GetFullName()) end
+end)
+
+connections[#connections+1] = restoreBtn.MouseButton1Click:Connect(function()
+    if #deletedParts > 0 then
+        local data = table.remove(deletedParts)
+        data.instance.Parent = data.parent
+        data.instance.CFrame = data.cframe
+        for _, v in ipairs(data.instance:GetChildren()) do
+            if v:IsA("Highlight") then v:Destroy() end
+        end
+        updateLabels()
+    end
+end)
+
+connections[#connections+1] = freezeBtn.MouseButton1Click:Connect(function()
+    if selectedPart and selectedPart:IsA("BasePart") then
+        freezeeParts[selectedPart] = {
+            Anchored = selectedPart.Anchored,
+            CanCollide = selectedPart.CanCollide,
+            Transparency = selectedPart.Transparency
+        }
+        selectedPart.Anchored = true
+        selectedPart.CanCollide = true
+        selectedPart.Transparency = 0
+        local part = selectedPart
+        coroutine.wrap(function()
+            while freezeeParts[part] and part.Parent do
+                pcall(function()
+                    part.Anchored = true
+                    part.CanCollide = true
+                    part.Transparency = 0
+                end)
+                task.wait(0.005)
+            end
+        end)()
+        updateLabels()
+    end
+    hidePrompt()
+end)
+
+connections[#connections+1] = unfreezeBtn.MouseButton1Click:Connect(function()
+    local unfrozen = false
+    for part, props in pairs(freezeeParts) do
+        if part and part.Parent then
+            part.Anchored = props.Anchored
+            part.CanCollide = props.CanCollide
+            part.Transparency = props.Transparency
+            freezeeParts[part] = nil
+            unfrozen = true
+            break
+        end
+    end
+    if unfrozen then
+        updateLabels()
+    end
+    hidePrompt()
+end)
+
+connections[#connections+1] = autoBtn.MouseButton1Click:Connect(function()
+    if selectedPart and not table.find(autoParts, selectedPart) then
+        table.insert(autoParts, selectedPart)
+        updateLabels()
+    end
+end)
+
+connections[#connections+1] = unautoBtn.MouseButton1Click:Connect(function()
+    if #autoParts > 0 then
+        local partToUnauto = table.remove(autoParts)
+        updateLabels()
+    end
+    hidePrompt()
+end)
+
+connections[#connections+1] = savePosBtn.MouseButton1Click:Connect(function()
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        table.insert(savedPlayerPositions, player.Character.HumanoidRootPart.CFrame)
+        updateLabels()
+    else
+        warn("Player character or HumanoidRootPart not found when attempting to save position.")
+    end
+end)
+
+connections[#connections+1] = teleportBtn.MouseButton1Click:Connect(function()
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        if #savedPlayerPositions > 0 then
+            if currentTeleportIndex > #savedPlayerPositions then
+                currentTeleportIndex = 1
+            end
+            local nextCFrame = savedPlayerPositions[currentTeleportIndex]
+            
+            isTeleportingWithScript = true
+            player.Character.HumanoidRootPart.CFrame = nextCFrame
+            task.wait(0.1)
+            isTeleportingWithScript = false
+            
+            currentTeleportIndex = (currentTeleportIndex % #savedPlayerPositions) + 1
+            updateLabels()
+        else
+            warn("No saved positions to teleport to.")
+        end
+    end
+end)
+
+connections[#connections+1] = clearPosBtn.MouseButton1Click:Connect(function()
+    if #savedPlayerPositions > 0 then
+        table.remove(savedPlayerPositions)
+        if currentTeleportIndex > #savedPlayerPositions and #savedPlayerPositions > 0 then
+            currentTeleportIndex = #savedPlayerPositions
+        elseif #savedPlayerPositions == 0 then
+            currentTeleportIndex = 1
+        end
+        updateLabels()
+    else
+        warn("No saved positions to clear.")
+    end
+end)
+
+connections[#connections+1] = antiTPBtn.MouseButton1Click:Connect(function()
+    toggleAntiTP = not toggleAntiTP
+    if toggleAntiTP then
+        antiTPBtn.Text = "Anti TP Back: ON"
+        antiTPBtn.BackgroundColor3 = COLOR_BUTTON_GREEN
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            lastPosition = player.Character.HumanoidRootPart.Position
+        end
+        if antiTPBackConnection then
+            antiTPBackConnection:Disconnect()
+        end
+        antiTPBackConnection = RunService.Stepped:Connect(function()
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local currentPos = hrp.Position
+                if isTeleportingWithScript then
+                    lastPosition = currentPos
+                elseif lastPosition then
+                    local distance = (currentPos - lastPosition).Magnitude
+                    if distance > threshold then
+                        hrp.CFrame = CFrame.new(lastPosition.X,lastPosition.Y,lastPosition.Z) * hrp.CFrame.Rotation
+                    else
+                        lastPosition = currentPos
+                    end
+                else
+                    lastPosition = currentPos
+                end
+            end
+        end)
+    else
+        antiTPBtn.Text = "Anti TP Back: OFF"
+        antiTPBtn.BackgroundColor3 = COLOR_BUTTON_GRAY
+        if antiTPBackConnection then
+            antiTPBackConnection:Disconnect()
+            antiTPBackConnection = nil
+        end
+        lastPosition = nil
+    end
+end)
+
+connections[#connections+1] = noClipBtn.MouseButton1Click:Connect(function()
+    toggleNoClip = not toggleNoClip
+    if toggleNoClip then
+        noClipBtn.Text = "NoClip: ON"
+        noClipBtn.BackgroundColor3 = COLOR_BUTTON_GREEN
+        setNoclip(player.Character, true)
+    else
+        noClipBtn.Text = "NoClip: OFF"
+        noClipBtn.BackgroundColor3 = COLOR_BUTTON_GRAY
+        setNoclip(player.Character, false)
+    end
+end)
+
+connections[#connections+1] = MinimizeButton.MouseButton1Click:Connect(function()
+    ContentFrame.Visible = false
+    MinimizeButton.Visible = false
+    MaximizeButton.Visible = true
+    
+    local actualTitleTextWidth = TextService:GetTextSize(
+        TitleLabel.Text,
+        TitleLabel.TextSize,
+        TitleLabel.Font,
+        Vector2.new(9999, TitleLabel.Size.Y.Offset)
+    ).X
+
+    TitleLabel.Size = UDim2.new(0, actualTitleTextWidth + MINIMIZED_TITLE_LEFT_PADDING + BUTTON_HEADER_SPACING, 0, HEADER_HEIGHT)
+    
+    MaximizeButton.Position = UDim2.new(0, TitleLabel.Size.X.Offset + TitleLabel.Position.X.Offset + BUTTON_HEADER_SPACING, 0, 4)
+    CloseButton.Position = UDim2.new(0, MaximizeButton.Position.X.Offset + MaximizeButton.Size.X.Offset + BUTTON_HEADER_SPACING, 0, 4)
+    
+    local requiredFrameWidth = CloseButton.Position.X.Offset + CloseButton.Size.X.Offset + UI_PADDING
+    
+    frame:TweenSize(UDim2.new(0, requiredFrameWidth, 0, MINIMIZED_HEIGHT), "Out", "Quad", 0.2, true) 
+end)
+
+connections[#connections+1] = MaximizeButton.MouseButton1Click:Connect(function()
+    ContentFrame.Visible = true
+    MinimizeButton.Visible = true
+    MaximizeButton.Visible = false
+    
+    TitleLabel.Position = UDim2.new(0, MINIMIZED_TITLE_LEFT_PADDING, 0, 0)
+    TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+    
+    CloseButton.Position = UDim2.new(1, -BUTTON_CLOSE_WIDTH - BUTTON_HEADER_SPACING, 0, 4)
+    MinimizeButton.Position = UDim2.new(1, -BUTTON_CLOSE_WIDTH - BUTTON_MIN_MAX_WIDTH - (BUTTON_HEADER_SPACING * 2), 0, 4)
+
+    frame:TweenSize(UDim2.new(0, 270, 0, MAXIMIZED_TOTAL_HEIGHT), "Out", "Quad", 0.2, true) 
+end)
+
+local autoPartsRunning = true
+local autoPartsThread = task.spawn(function()
+    while autoPartsRunning do
+        for i = #autoParts, 1, -1 do
+            local part = autoParts[i]
+            if part and part.Parent and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local prompt = part:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then
+                    pcall(function() fireproximityprompt(prompt) end)
+                else
+                    pcall(function()
+                        firetouchinterest(player.Character.HumanoidRootPart, part, 0)
+                        task.wait(0.005)
+                        firetouchinterest(player.Character.HumanoidRootPart, part, 1)
+                    end)
+                end
+            elseif not part or not part.Parent then
+                table.remove(autoParts, i)
+                updateLabels()
+            end
+        end
+        task.wait(0.005)
+    end
+end)
+
+local highlightConnection = RunService.RenderStepped:Connect(function()
+    if selectedHighlight and selectedHighlight.Parent then
+        local t = tick()
+        local alpha = 0.3 + math.abs(math.sin(t * 2)) * 0.2
+        selectedHighlight.FillTransparency = alpha
+    end
+end)
+connections[#connections+1] = highlightConnection
+
+local function cleanup()
+    autoPartsRunning = false
+    if autoPartsThread then
+        task.cancel(autoPartsThread)
+        autoPartsThread = nil
+    end
+
+    if highlightConnection then
+        highlightConnection:Disconnect()
+        highlightConnection = nil
+    end
+
+    if antiTPBackConnection then
+        antiTPBackConnection:Disconnect()
+        antiTPBackConnection = nil
+    end
+
+    clearHighlight()
+
+    for _, conn in ipairs(connections) do
+        if conn and conn.Connected then
+            conn:Disconnect()
+        end
+    end
+    connections = {}
+
+    if mainGui and mainGui.Parent then
+        mainGui:Destroy()
+    end
+
+    print("GUI dan semua fungsionalitasnya telah dihapus sepenuhnya.")
+end
+
+connections[#connections+1] = CloseButton.MouseButton1Click:Connect(cleanup)
+
+updateLabels()
