@@ -1,5 +1,5 @@
+-- Constants
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
 local TextService = game:GetService("TextService")
 local RunService = game:GetService("RunService")
@@ -11,9 +11,11 @@ local isMinimized = false
 
 local MINIMIZED_HEIGHT = 30
 local MAXIMIZED_HEIGHT = 90
-local BUTTON_HEIGHT = 28
+local BUTTON_HEIGHT = 24
 local UI_PADDING = 8
 local HEADER_HEIGHT = 30
+local BUTTON_WIDTH = 24
+local BUTTON_SPACING = 4
 
 local COLOR_FRAME_BACKGROUND = Color3.fromRGB(15, 15, 15)
 local COLOR_TEXT_PRIMARY = Color3.new(1, 1, 1)
@@ -81,6 +83,9 @@ local function handleCharacterDied()
 end
 
 RealCharacter.Humanoid.Died:Connect(function()
+    if isToggledOn then
+        InvisibleToggle()
+    end
     RealCharacter:Destroy()
     FakeCharacter:Destroy()
 end)
@@ -157,8 +162,8 @@ Instance.new("UICorner", frame).CornerRadius = COLOR_BORDER_RADIUS
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Parent = frame
-TitleLabel.Size = UDim2.new(1, -2 * UI_PADDING, 0, HEADER_HEIGHT)
-TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
+TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.Text = "FE Invisible"
 TitleLabel.Font = Enum.Font.GothamBold
@@ -170,8 +175,8 @@ TitleLabel.TextWrapped = false
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "Minimize"
 MinimizeButton.Parent = frame
-MinimizeButton.Size = UDim2.new(0, 24, 0, 24)
-MinimizeButton.Position = UDim2.new(1, -56, 0, 4)
+MinimizeButton.Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_WIDTH)
+MinimizeButton.Position = UDim2.new(1, -BUTTON_WIDTH * 2 - BUTTON_SPACING - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
 MinimizeButton.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
 MinimizeButton.Text = "-"
 MinimizeButton.Font = Enum.Font.GothamBold
@@ -183,8 +188,8 @@ MinimizeButton.Visible = true
 local MaximizeButton = Instance.new("TextButton")
 MaximizeButton.Name = "Maximize"
 MaximizeButton.Parent = frame
-MaximizeButton.Size = UDim2.new(0, 24, 0, 24)
-MaximizeButton.Position = UDim2.new(1, -56, 0, 4)
+MaximizeButton.Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_WIDTH)
+MaximizeButton.Position = UDim2.new(1, -BUTTON_WIDTH * 2 - BUTTON_SPACING - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
 MaximizeButton.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
 MaximizeButton.Text = "+"
 MaximizeButton.Font = Enum.Font.GothamBold
@@ -196,8 +201,8 @@ MaximizeButton.Visible = false
 local CloseButton = Instance.new("TextButton")
 CloseButton.Name = "Close"
 CloseButton.Parent = frame
-CloseButton.Size = UDim2.new(0, 24, 0, 24)
-CloseButton.Position = UDim2.new(1, -28, 0, 4)
+CloseButton.Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_WIDTH)
+CloseButton.Position = UDim2.new(1, -BUTTON_WIDTH - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
 CloseButton.BackgroundColor3 = COLOR_BUTTON_DELETE
 CloseButton.Text = "X"
 CloseButton.Font = Enum.Font.GothamBold
@@ -235,10 +240,7 @@ ToggleButton.MouseButton1Click:Connect(onToggle)
 
 local function calculateMinimizedWidth()
     local titleTextWidth = TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, HEADER_HEIGHT)).X
-    local buttonWidth = 24
-    local buttonSpacing = 4
-    local titleLeftPadding = UI_PADDING
-    return titleLeftPadding + titleTextWidth + buttonSpacing + buttonWidth + buttonSpacing + buttonWidth + UI_PADDING
+    return UI_PADDING + titleTextWidth + BUTTON_SPACING + BUTTON_WIDTH + BUTTON_SPACING + BUTTON_WIDTH + UI_PADDING
 end
 
 MinimizeButton.MouseButton1Click:Connect(function()
@@ -257,6 +259,13 @@ MinimizeButton.MouseButton1Click:Connect(function()
 
     local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
     tween:Play()
+    
+    -- Memindahkan tombol secara langsung, tanpa menunggu tween selesai
+    local newMaximizePositionX = UI_PADDING + TitleLabel.Size.X.Offset + BUTTON_SPACING
+    MaximizeButton.Position = UDim2.new(0, newMaximizePositionX, 0, (MINIMIZED_HEIGHT - BUTTON_WIDTH) / 2)
+    
+    local newClosePositionX = newMaximizePositionX + BUTTON_WIDTH + BUTTON_SPACING
+    CloseButton.Position = UDim2.new(0, newClosePositionX, 0, (MINIMIZED_HEIGHT - BUTTON_WIDTH) / 2)
 end)
 
 MaximizeButton.MouseButton1Click:Connect(function()
@@ -265,8 +274,8 @@ MaximizeButton.MouseButton1Click:Connect(function()
     MinimizeButton.Visible = true
     MaximizeButton.Visible = false
 
-    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
-    TitleLabel.Size = UDim2.new(1, -2 * UI_PADDING, 0, HEADER_HEIGHT)
+    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
+    TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
 
     local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
     local properties = {
@@ -275,6 +284,10 @@ MaximizeButton.MouseButton1Click:Connect(function()
 
     local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
     tween:Play()
+
+    -- Memindahkan tombol secara langsung, tanpa menunggu tween selesai
+    MinimizeButton.Position = UDim2.new(1, -(BUTTON_WIDTH + BUTTON_SPACING) * 2 - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
+    CloseButton.Position = UDim2.new(1, -BUTTON_WIDTH - UI_PADDING, 0, (HEADER_HEIGHT-BUTTON_WIDTH)/2)
 end)
 
 CloseButton.MouseButton1Click:Connect(function()
@@ -284,21 +297,30 @@ CloseButton.MouseButton1Click:Connect(function()
     mainGui:Destroy()
 end)
 
-local dragging, offset
+-- Menggunakan properti Draggable bawaan Roblox
 frame.InputBegan:Connect(function(input)
     if not isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        dragging = true
-        offset = input.Position - frame.AbsolutePosition
-        input:Capture()
+        local draggableFrame = frame:FindFirstChild("PosTracker_Frame") or frame
+        if draggableFrame then
+            local _, pos = frame.AbsolutePosition:Sub(input.Position)
+            frame:SetAttribute("DragOffset", pos)
+            input:Capture()
+        end
     end
 end)
-UserInputService.InputEnded:Connect(function(input)
+
+frame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        local dragOffset = frame:GetAttribute("DragOffset")
+        if dragOffset then
+            local newPosition = input.Position + dragOffset
+            frame.Position = UDim2.new(0, newPosition.X, 0, newPosition.Y)
+        end
+    end
+end)
+
+frame.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        frame.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
+        frame:SetAttribute("DragOffset", nil)
     end
 end)
