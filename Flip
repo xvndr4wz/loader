@@ -1,19 +1,15 @@
+-- Constants
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
 local TextService = game:GetService("TextService")
 local player = Players.LocalPlayer
 
-local GUI_WIDTH = 200
-local guiPos = UDim2.new(0.5, -GUI_WIDTH / 2, 0.5, -70)
-local isMinimized = false
-
 local MINIMIZED_HEIGHT = 30
 local MAXIMIZED_HEIGHT = 140
-local BUTTON_HEIGHT = 28
-local ROW_SPACING = 8
 local UI_PADDING = 8
 local HEADER_HEIGHT = 30
+local GUI_WIDTH = 200
 
 local COLOR_FRAME_BACKGROUND = Color3.fromRGB(15, 15, 15)
 local COLOR_TEXT_PRIMARY = Color3.new(1, 1, 1)
@@ -22,6 +18,7 @@ local COLOR_BUTTON_DELETE = Color3.fromRGB(200, 0, 0)
 local COLOR_BORDER_RADIUS = UDim.new(0, 12)
 local COLOR_BUTTON_RADIUS = UDim.new(0, 6)
 
+-- Main Flip Logic
 local function performFlip(character, flipDirection)
     local hum = character:WaitForChild("Humanoid")
     local rootpart = character:WaitForChild("HumanoidRootPart")
@@ -49,6 +46,7 @@ local function performFlip(character, flipDirection)
     end
 end
 
+-- GUI Setup
 if game.CoreGui:FindFirstChild("FlipGUI") then
     game.CoreGui.FlipGUI:Destroy()
 end
@@ -61,18 +59,18 @@ mainGui.ResetOnSpawn = false
 local frame = Instance.new("Frame")
 frame.Parent = mainGui
 frame.Size = UDim2.new(0, GUI_WIDTH, 0, MAXIMIZED_HEIGHT)
-frame.Position = guiPos
+frame.Position = UDim2.new(0.5, -GUI_WIDTH / 2, 0.5, -70)
 frame.BackgroundColor3 = COLOR_FRAME_BACKGROUND
 frame.BorderSizePixel = 0
 frame.Active = true
-frame.Draggable = true
+frame.Draggable = true -- Menggunakan properti Draggable bawaan Roblox
 frame.ClipsDescendants = true
 Instance.new("UICorner", frame).CornerRadius = COLOR_BORDER_RADIUS
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Parent = frame
-TitleLabel.Size = UDim2.new(1, -2 * UI_PADDING, 0, HEADER_HEIGHT)
-TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
+TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT) -- Ukuran penuh, padding diatur secara visual
+TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.Text = "🤸 Flip"
 TitleLabel.Font = Enum.Font.GothamBold
@@ -127,7 +125,7 @@ ContentFrame.ClipsDescendants = true
 
 local function createButton(parent, text, yOffset, action)
     local btn = Instance.new("TextButton", parent)
-    btn.Size = UDim2.new(1, -2 * UI_PADDING, 0, BUTTON_HEIGHT)
+    btn.Size = UDim2.new(1, -2 * UI_PADDING, 0, 28)
     btn.Position = UDim2.new(0, UI_PADDING, 0, yOffset)
     btn.Text = text
     btn.BackgroundColor3 = COLOR_BUTTON_ACTION_PRIMARY
@@ -156,19 +154,18 @@ end
 local currentYOffset = UI_PADDING
 local frontflipBtn = createButton(ContentFrame, "Front Flip", currentYOffset, function(char) performFlip(char, -1) end)
 
-currentYOffset = currentYOffset + BUTTON_HEIGHT + ROW_SPACING
+currentYOffset = currentYOffset + 28 + 8
 local backflipBtn = createButton(ContentFrame, "Back Flip", currentYOffset, function(char) performFlip(char, 1) end)
 
 local function calculateMinimizedWidth()
-    local titleTextWidth = TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, HEADER_HEIGHT)).X
     local buttonWidth = 24
     local buttonSpacing = 4
     local titleLeftPadding = UI_PADDING
-    return titleLeftPadding + titleTextWidth + buttonSpacing + buttonWidth + buttonSpacing + buttonWidth + UI_PADDING
+    local titleTextWidth = TextService:GetTextSize(TitleLabel.Text, TitleLabel.TextSize, TitleLabel.Font, Vector2.new(1000, HEADER_HEIGHT)).X
+    return titleLeftPadding + titleTextWidth + buttonSpacing + buttonWidth + buttonSpacing + buttonWidth + titleLeftPadding
 end
 
 MinimizeButton.MouseButton1Click:Connect(function()
-    isMinimized = true
     ContentFrame.Visible = false
     MinimizeButton.Visible = false
     MaximizeButton.Visible = true
@@ -183,17 +180,20 @@ MinimizeButton.MouseButton1Click:Connect(function()
 
     local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
     tween:Play()
+
+    task.wait(0.2)
+    MaximizeButton.Position = UDim2.new(1, -56, 0, 4)
+    CloseButton.Position = UDim2.new(1, -28, 0, 4)
 end)
 
 MaximizeButton.MouseButton1Click:Connect(function()
-    isMinimized = false
     ContentFrame.Visible = true
     MinimizeButton.Visible = true
     MaximizeButton.Visible = false
 
-    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, UI_PADDING)
-    TitleLabel.Size = UDim2.new(1, -2 * UI_PADDING, 0, HEADER_HEIGHT)
-
+    TitleLabel.Position = UDim2.new(0, UI_PADDING, 0, 0)
+    TitleLabel.Size = UDim2.new(1, 0, 0, HEADER_HEIGHT)
+    
     local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
     local properties = {
         Size = UDim2.new(0, GUI_WIDTH, 0, MAXIMIZED_HEIGHT)
@@ -201,27 +201,13 @@ MaximizeButton.MouseButton1Click:Connect(function()
 
     local tween = game:GetService("TweenService"):Create(frame, tweenInfo, properties)
     tween:Play()
+
+    task.wait(0.2)
+    MaximizeButton.Position = UDim2.new(1, -56, 0, 4)
+    MinimizeButton.Position = UDim2.new(1, -56, 0, 4)
+    CloseButton.Position = UDim2.new(1, -28, 0, 4)
 end)
 
 CloseButton.MouseButton1Click:Connect(function()
     mainGui:Destroy()
-end)
-
-local dragging, offset
-frame.InputBegan:Connect(function(input)
-    if not isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        dragging = true
-        offset = input.Position - frame.AbsolutePosition
-        input:Capture()
-    end
-end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        frame.Position = UDim2.new(0, input.Position.X - offset.X, 0, input.Position.Y - offset.Y)
-    end
 end)
