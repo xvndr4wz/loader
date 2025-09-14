@@ -1,10 +1,22 @@
 function Ioad(name)
-    local s, e = pcall(function()
-        local url = "https://loader-draaxz.pages.dev/" .. name
-        local response = game:HttpGet(url)
-        return loadstring(response)()
-    end)
-    if not s then
-        warn("Gagal memuat script: "..tostring(e))
+    local sources = {
+        "https://loader-draaxz.pages.dev/",
+        "https://loader-eight-kohl.vercel.app/"
+    }
+
+    local loaded = false
+    for _, baseUrl in ipairs(sources) do
+        local success, err = pcall(function()
+            local response = game:HttpGet(baseUrl .. name)
+            loadstring(response)()
+        end)
+        if success then
+            loaded = true
+            break
+        end
+    end
+
+    if not loaded then
+        warn("Gagal memuat script dari semua sumber: " .. tostring(name))
     end
 end
