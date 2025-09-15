@@ -1,26 +1,254 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>You Are An Idiot</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Loader Viewer — Ndraaw</title>
   <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-      background: black;
-      overflow: hidden;
-    }
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#7c3aed;--muted:#9aa4b2;--success:#10b981}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;background:linear-gradient(180deg,#061226 0%, #071428 100%);color:#e6eef8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+    .container{width:100%;max-width:980px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:26px;border-radius:14px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    header{display:flex;gap:18px;align-items:center}
+    .logo{width:56px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--accent),#5b21b6);font-weight:700;font-size:20px}
+    h1{margin:0;font-size:20px}
+    p.lead{margin:6px 0 0;color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:20px;margin-top:18px}
+    .left{min-height:320px}
+    .right{min-height:320px}
+
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}
+    .input, .select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.01);color:inherit;font-size:14px}
+    .row{display:flex;gap:10px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:0;background:var(--accent);color:white;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.03)}
+    .muted{color:var(--muted);font-size:13px}
+
+    .resultBox{margin-top:14px;background:#051025;border-radius:10px;padding:12px;border:1px solid rgba(255,255,255,0.02)}
+    pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;font-size:13px;line-height:1.5;margin:0}
+
+    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(0deg, rgba(2,6,23,0.6), rgba(2,6,23,0.6));backdrop-filter:blur(3px)}
+    .modalCard{width:420px;background:var(--card);padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+
+    .small{font-size:12px;color:var(--muted)}
+    .tag{display:inline-block;background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-size:12px}
+
+    .hidden{display:none}
+    footer{margin-top:18px;display:flex;justify-content:space-between;align-items:center}
+    a.link{color:var(--accent);text-decoration:none}
+
+    @media(max-width:880px){.grid{grid-template-columns:1fr;}.right{order:2}}
   </style>
 </head>
 <body>
-  <video autoplay loop playsinline>
-    <source src="youareanidiot.mp4" type="video/mp4">
-    Browser tidak mendukung video.
-  </video>
+  <div class="container">
+    <div class="card">
+      <header>
+        <div class="logo">ND</div>
+        <div>
+          <h1>Protected Loader Viewer</h1>
+          <p class="lead">Masukkan lokasi file GitHub (atau raw URL), lalu masukkan kunci untuk melihat isi kode.</p>
+        </div>
+      </header>
+
+      <div class="grid">
+        <div class="left">
+          <label for="fileInput">GitHub file (username/repo/branch/path) <span class="small">atau paste raw.githubusercontent URL</span></label>
+          <input id="fileInput" class="input" placeholder="contoh: ndraaw/loader/main/lua/auth.lua  — atau — https://raw.githubusercontent.com/username/repo/branch/path/file.lua" />
+
+          <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+            <button id="searchBtn" class="btn">Cari file</button>
+            <button id="exampleBtn" class="btn ghost">Contoh</button>
+            <span class="muted">Status: <span id="status">idle</span></span>
+          </div>
+
+          <div id="result" class="resultBox hidden" style="margin-top:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div>
+                <div class="tag" id="foundPath">-</div>
+                <div class="small" style="margin-top:6px">Klik "Lihat" untuk melihat isi (membutuhkan kunci).</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button id="viewBtn" class="btn">Lihat</button>
+                <button id="downloadBtn" class="btn ghost">Download</button>
+              </div>
+            </div>
+            <div id="previewArea" class="hidden"><pre id="codeBlock"></pre></div>
+          </div>
+
+        </div>
+
+        <aside class="right">
+          <div style="background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div class="small">Project</div>
+                <strong>Loader Viewer</strong>
+              </div>
+              <div style="text-align:right">
+                <div class="small">Protected</div>
+                <div style="font-weight:700">Key required</div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px">
+              <div class="small">Petunjuk singkat:</div>
+              <ol class="small" style="padding-left:16px;margin-top:8px">
+                <li>Masukkan path GitHub atau raw URL.</li>
+                <li>Klik Cari — jika file ditemukan klik Lihat.</li>
+                <li>Masukkan kunci untuk melihat isi (client-side demo).</li>
+              </ol>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;text-align:center;color:var(--muted);font-size:13px">
+            <div>Butuh proteksi lebih kuat?</div>
+            <div style="margin-top:8px"><a class="link" href="#">Gunakan server-side auth (disarankan)</a></div>
+          </div>
+        </aside>
+      </div>
+
+      <footer>
+        <div class="small">Made by Ndraaw • Demo viewer</div>
+        <div class="small">Note: Kunci disimpan di client (bukan aman). For production use server-side auth.</div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal untuk kunci -->
+  <div id="modal" class="modal hidden">
+    <div class="modalCard">
+      <h3 style="margin:0 0 8px 0">Masukkan Kunci</h3>
+      <div class="small" style="margin-bottom:12px">Masukkan kunci untuk melihat isi file.</div>
+      <input id="keyInput" class="input" placeholder="Masukkan kunci" />
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+        <button id="cancelKey" class="btn ghost">Batal</button>
+        <button id="okKey" class="btn">OK</button>
+      </div>
+      <div id="keyMsg" class="small" style="margin-top:8px;color:#fca5a5"></div>
+    </div>
+  </div>
+
+  <script>
+    // NOTE: Pada contoh ini pengecekan kunci dilakukan di client (JS).
+    // Ini TIDAK AMAN untuk proteksi nyata karena orang dapat melihat source dan key di DevTools.
+    // Untuk produksi gunakan server-side validation (Vercel serverless / Netlify function / custom server).
+
+    const REAL_KEY = 'ndraa123good'; // sesuai permintaan
+    const input = document.getElementById('fileInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const exampleBtn = document.getElementById('exampleBtn');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    const foundPath = document.getElementById('foundPath');
+    const viewBtn = document.getElementById('viewBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const modal = document.getElementById('modal');
+    const okKey = document.getElementById('okKey');
+    const cancelKey = document.getElementById('cancelKey');
+    const keyInput = document.getElementById('keyInput');
+    const keyMsg = document.getElementById('keyMsg');
+    const codeBlock = document.getElementById('codeBlock');
+    const previewArea = document.getElementById('previewArea');
+
+    let currentRawUrl = null;
+    let currentContent = null;
+
+    function setStatus(t){ status.textContent = t }
+
+    exampleBtn.addEventListener('click', ()=>{
+      input.value = 'ndraaw/loader/main/lua/auth.lua';
+    });
+
+    function buildRawUrl(value){
+      value = value.trim();
+      if(!value) return null;
+      // jika langsung raw.githubusercontent URL
+      if(value.startsWith('http')){
+        // allow raw.githubusercontent or raw file
+        return value;
+      }
+      // expecting form: user/repo/branch/path/to/file.ext
+      const parts = value.split('/');
+      if(parts.length < 4) return null;
+      const user = parts.shift();
+      const repo = parts.shift();
+      const branch = parts.shift();
+      const path = parts.join('/');
+      return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${path}`;
+    }
+
+    async function fetchFile(rawUrl){
+      setStatus('fetching...');
+      try{
+        const res = await fetch(rawUrl, {cache: 'no-store'});
+        if(!res.ok) throw new Error('not ok: '+res.status);
+        const txt = await res.text();
+        setStatus('found');
+        return txt;
+      }catch(err){
+        setStatus('not found');
+        throw err;
+      }
+    }
+
+    searchBtn.addEventListener('click', async ()=>{
+      const val = input.value.trim();
+      const url = buildRawUrl(val);
+      if(!url){ setStatus('invalid'); alert('Masukkan path GitHub lengkap: user/repo/branch/path/to/file.ext'); return }
+      setStatus('checking');
+      try{
+        const txt = await fetchFile(url);
+        currentRawUrl = url;
+        currentContent = txt;
+        foundPath.textContent = url;
+        result.classList.remove('hidden');
+        previewArea.classList.add('hidden');
+        codeBlock.textContent = '';
+      }catch(e){
+        result.classList.add('hidden');
+        currentRawUrl = null;
+        currentContent = null;
+      }
+    });
+
+    viewBtn.addEventListener('click', ()=>{
+      if(!currentRawUrl) return;
+      // open modal for key
+      keyInput.value = '';
+      keyMsg.textContent = '';
+      modal.classList.remove('hidden');
+      keyInput.focus();
+    });
+
+    cancelKey.addEventListener('click', ()=>{ modal.classList.add('hidden'); });
+
+    okKey.addEventListener('click', ()=>{
+      const val = keyInput.value || '';
+      if(val === REAL_KEY){
+        // success
+        modal.classList.add('hidden');
+        previewArea.classList.remove('hidden');
+        // render content
+        codeBlock.textContent = currentContent;
+        // enable download
+        downloadBtn.onclick = ()=>{
+          const blob = new Blob([currentContent], {type: 'text/plain'});
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = (currentRawUrl.split('/').pop() || 'file.lua');
+          a.click();
+        };
+      } else {
+        keyMsg.textContent = 'Kunci salah.';
+      }
+    });
+
+    // allow pressing Enter
+    keyInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ okKey.click(); } });
+
+  </script>
 </body>
 </html>
