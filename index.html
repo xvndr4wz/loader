@@ -165,11 +165,34 @@
     function buildRawUrl(value){
       value = value.trim();
       if(!value) return null;
-      // jika langsung raw.githubusercontent URL
+
+      // Jika pengguna memasukkan full URL (http/https), pakai langsung
       if(value.startsWith('http')){
-        // allow raw.githubusercontent or raw file
         return value;
       }
+
+      // Jika hanya nama file atau path relatif, arahkan ke host yang sama (repo tempat index.html diletakkan)
+      // Contoh input yang valid: 'auth.lua' atau 'lua/auth.lua' atau 'path/to/file.lua'
+      if(!value.includes('/')){
+        // cuma nama file, letakkan di folder /lua/ secara default
+        return `${location.origin}/lua/${value}`;
+      }
+
+      // jika path relatif (mengandung /) dan tampaknya bukan user/repo/branch/... maka gunakan origin
+      // asumsi: jika input bermula dengan pola user/repo/branch maka fallback ke raw.githubusercontent
+      const parts = value.split('/');
+      if(parts.length >= 4 && !value.startsWith('lua/') && !value.startsWith('/')){
+        // treat as user/repo/branch/path -> use raw.githubusercontent
+        const user = parts.shift();
+        const repo = parts.shift();
+        const branch = parts.shift();
+        const path = parts.join('/');
+        return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${path}`;
+      }
+
+      // default: treat as relative to this site
+      return `${location.origin}/${value.replace(/^\/+/, '')}`;
+    }
       // expecting form: user/repo/branch/path/to/file.ext
       const parts = value.split('/');
       if(parts.length < 4) return null;
