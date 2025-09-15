@@ -3,69 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Fullscreen</title>
+    <title>Video Loop Tanpa Kontrol</title>
     <style>
-        body, html {
+        * {
             margin: 0;
             padding: 0;
-            overflow: hidden;
-            height: 100%;
-            background-color: #000;
+            box-sizing: border-box;
         }
+        
+        body {
+            overflow: hidden;
+            background-color: #000;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .video-container {
+            width: 100%;
+            height: 100%;
+        }
+        
         video {
-            position: fixed;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-    </style>
-</head>
-<body>
-    <video autoplay loop muted>
-        <source src="youareanidiot.mp4" type="video/mp4">
-        Browser Anda tidak mendukung pemutaran video.
-    </video>
-</body>
-</html>            margin: 20px 0;
+        
+        /* Sembunyikan kontrol browser default */
+        video::-webkit-media-controls {
+            display: none !important;
+        }
+        
+        video::-webkit-media-controls-enclosure {
+            display: none !important;
+        }
+        
+        video::-webkit-media-controls-panel {
+            display: none !important;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 8px 12px;
             border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
         }
-        code {
-            background-color: #eee;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        .note {
-            font-size: 0.9em;
-            color: #666;
-            font-style: italic;
+        
+        body:hover .info {
+            opacity: 1;
         }
     </style>
 </head>
 <body>
-    <h1>Pemutar Video Sederhana</h1>
-    
     <div class="video-container">
-        <!-- Tag video untuk menampilkan video -->
-        <video controls>
+        <video id="myVideo" autoplay loop muted playsinline>
             <source src="youareanidiot.mp4" type="video/mp4">
             Browser Anda tidak mendukung pemutaran video.
         </video>
     </div>
     
-    <div class="info-box">
-        <h3>Informasi Penting:</h3>
-        <p>Pastikan file <code>youareanidiot.mp4</code> berada dalam folder yang sama dengan file HTML ini.</p>
-        <p class="note">Jika video tidak muncul, periksa nama file dan pastikan sudah benar.</p>
+    <div class="info">
+        Video diputar secara loop tanpa kontrol
     </div>
-    
-    <div>
-        <h3>Penjelasan Kode:</h3>
-        <p>Tag <code>&lt;video&gt;</code> digunakan untuk menampilkan video di halaman web.</p>
-        <p>Atribut <code>controls</code> menambahkan kontrol pemutaran (play, pause, volume, dll).</p>
-        <p>Tag <code>&lt;source&gt;</code> di dalamnya menentukan sumber video dan tipe filenya.</p>
-    </div>
+
+    <script>
+        // Mencegah konteks menu muncul pada klik kanan
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+        
+        // Mencegah perilaku default drag & drop
+        document.querySelector('video').addEventListener('dragstart', function(e) {
+            e.preventDefault();
+        });
+        
+        // Memastikan video selalu diputar
+        const video = document.getElementById('myVideo');
+        
+        video.addEventListener('pause', function() {
+            video.play();
+        });
+        
+        video.addEventListener('ended', function() {
+            video.play();
+        });
+    </script>
 </body>
 </html>
