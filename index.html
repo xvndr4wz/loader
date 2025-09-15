@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Loop Tanpa Kontrol</title>
+    <title>Video Loop dengan Suara</title>
     <style>
         * {
             margin: 0;
@@ -18,11 +18,13 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         .video-container {
             width: 100%;
             height: 100%;
+            position: relative;
         }
         
         video {
@@ -44,35 +46,58 @@
             display: none !important;
         }
         
-        .info {
+        .message {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
             color: white;
-            font-family: Arial, sans-serif;
-            font-size: 14px;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
             background-color: rgba(0, 0, 0, 0.5);
-            padding: 8px 12px;
-            border-radius: 4px;
-            opacity: 0;
-            transition: opacity 0.3s;
+            padding: 10px;
+            z-index: 10;
         }
         
-        body:hover .info {
-            opacity: 1;
+        .volume-warning {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: #ff9900;
+            font-size: 16px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            z-index: 10;
+        }
+        
+        .instructions {
+            position: absolute;
+            bottom: 70px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 8px;
+            z-index: 10;
+            opacity: 0.8;
         }
     </style>
 </head>
 <body>
     <div class="video-container">
-        <video id="myVideo" autoplay loop muted playsinline>
+        <video id="myVideo" autoplay loop playsinline>
             <source src="youareanidiot.mp4" type="video/mp4">
             Browser Anda tidak mendukung pemutaran video.
         </video>
-    </div>
-    
-    <div class="info">
-        Video diputar secara loop tanpa kontrol
+        
+        <div class="message">Video diputar dengan suara dan looping terus</div>
+        <div class="volume-warning">Pastikan volume perangkat Anda tidak silent!</div>
+        <div class="instructions">Beberapa browser membutuhkan interaksi pengguna pertama kali untuk memutar suara</div>
     </div>
 
     <script>
@@ -95,6 +120,28 @@
         
         video.addEventListener('ended', function() {
             video.play();
+        });
+        
+        // Untuk browser yang membutuhkan interaksi pengguna pertama kali
+        document.body.addEventListener('click', function() {
+            video.play().catch(e => console.log('Autoplay prevented:', e));
+        }, { once: true });
+        
+        // Coba memutar dengan suara
+        function attemptPlayWithSound() {
+            video.muted = false;
+            video.play().then(() => {
+                console.log('Video diputar dengan suara');
+            }).catch(e => {
+                console.log('Tidak bisa memutar dengan suara:', e);
+                video.muted = true;
+                video.play();
+            });
+        }
+        
+        // Tunggu sampai halaman dimuat sepenuhnya
+        window.addEventListener('load', function() {
+            setTimeout(attemptPlayWithSound, 100);
         });
     </script>
 </body>
