@@ -1,652 +1,137 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub File Explorer</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root {
-            --primary: #238636;
-            --primary-hover: #2ea043;
-            --secondary: #6e7681;
-            --bg-dark: #0d1117;
-            --card-dark: #161b22;
-            --border: #30363d;
-            --text: #f0f6fc;
-            --text-secondary: #8b949e;
-            --accent: #388bfd;
-            --success: #3fb950;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-dark);
-            color: var(--text);
-            min-height: 100vh;
-            padding: 20px;
-            line-height: 1.5;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-        }
-
-        header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            color: var(--text);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-        }
-
-        header p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-        }
-
-        .search-section {
-            background: var(--card-dark);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-
-        .search-box {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .search-input {
-            flex: 1;
-            padding: 12px 20px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--bg-dark);
-            color: var(--text);
-            font-size: 1rem;
-            outline: none;
-            transition: all 0.3s ease;
-        }
-
-        .search-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.3);
-        }
-
-        .search-input::placeholder {
-            color: var(--text-secondary);
-        }
-
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-hover);
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid var(--border);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .auth-section {
-            background: var(--card-dark);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 30px;
-            display: none;
-        }
-
-        .auth-section.active {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-
-        .auth-form {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .form-group label {
-            font-weight: 500;
-            color: var(--text-secondary);
-        }
-
-        .form-group input {
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            background: var(--bg-dark);
-            color: var(--text);
-            font-size: 1rem;
-            outline: none;
-            transition: all 0.3s ease;
-        }
-
-        .form-group input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.3);
-        }
-
-        .files-section {
-            display: none;
-        }
-
-        .files-section.active {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-
-        .file-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .file-item {
-            background: var(--card-dark);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .file-item:hover {
-            background: rgba(56, 139, 253, 0.1);
-            border-color: var(--accent);
-        }
-
-        .file-icon {
-            font-size: 2rem;
-            color: var(--text-secondary);
-            flex-shrink: 0;
-        }
-
-        .file-icon.js { color: #f7df1e; }
-        .file-icon.html { color: #e34f26; }
-        .file-icon.css { color: #1572b6; }
-        .file-icon.py { color: #3776ab; }
-        .file-icon.json { color: #f5de19; }
-        .file-icon.md { color: #6e7681; }
-        .file-icon.default { color: var(--accent); }
-
-        .file-info {
-            overflow: hidden;
-        }
-
-        .file-name {
-            font-weight: 600;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .file-desc {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .code-section {
-            display: none;
-            background: var(--card-dark);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 25px;
-            margin-top: 30px;
-        }
-
-        .code-section.active {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-
-        .code-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .code-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .code-actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        .code-content {
-            position: relative;
-        }
-
-        pre {
-            background: #1b1b2f;
-            border-radius: 8px;
-            padding: 20px;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            tab-size: 4;
-            -moz-tab-size: 4;
-        }
-
-        code {
-            font-family: 'Fira Code', monospace;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            color: #d4d4d4;
-        }
-
-        .copy-notification {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: var(--success);
-            color: white;
-            padding: 15px 25px;
-            border-radius: 8px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.3s ease;
-            z-index: 1000;
-        }
-
-        .copy-notification.active {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .search-box {
-                flex-direction: column;
-            }
-            
-            .file-list {
-                grid-template-columns: 1fr;
-            }
-            
-            .code-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-            }
-            
-            .code-actions {
-                width: 100%;
-                justify-content: space-between;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Explorer GitHub</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background:#0f172a; color:#f8fafc; font-family:sans-serif; padding:20px; }
+    h1 { background:linear-gradient(to right,#4cc9f0,#4361ee); -webkit-background-clip:text; color:transparent; font-size:2rem; }
+    .search-box { display:flex; gap:10px; margin:20px 0; }
+    .search-input { flex:1; padding:10px; border-radius:6px; border:none; }
+    .btn { padding:10px 20px; border:none; border-radius:6px; cursor:pointer; }
+    .btn-primary { background:#4361ee; color:white; }
+    .btn-secondary { background:#1e293b; color:white; }
+    .file-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:15px; }
+    .file-item { background:#1e293b; padding:15px; border-radius:8px; cursor:pointer; transition:.2s; }
+    .file-item:hover { background:#334155; }
+    pre { background:#0f172a; padding:15px; border-radius:8px; overflow-x:auto; }
+    .hidden { display:none; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1><i class="fab fa-github"></i> GitHub File Explorer</h1>
-            <p>Jelajahi file dari repository GitHub dengan mudah</p>
-        </header>
+  <h1><i class="fas fa-folder-open"></i> File Explorer GitHub</h1>
 
-        <section class="search-section">
-            <div class="search-box">
-                <input type="text" class="search-input" id="repo-input" placeholder="username/repository (contoh: facebook/react)">
-                <button class="btn btn-primary" id="load-repo-btn">
-                    <i class="fas fa-cloud-download-alt"></i> Muat Repo
-                </button>
-            </div>
-            <div class="search-box">
-                <input type="text" class="search-input" id="search-input" placeholder="Cari nama file...">
-                <button class="btn btn-primary" id="search-btn">
-                    <i class="fas fa-search"></i> Cari
-                </button>
-            </div>
-            <button class="btn btn-secondary" id="list-btn">
-                <i class="fas fa-list"></i> Tampilkan Semua File
-            </button>
-        </section>
+  <div class="search-box">
+    <input type="text" id="repo-url" class="search-input" placeholder="Masukkan URL repo GitHub (contoh: https://github.com/ndraawz/hub)">
+  </div>
+  <div class="search-box">
+    <input type="text" id="search-input" class="search-input" placeholder="Cari nama file...">
+    <button class="btn btn-primary" id="search-btn"><i class="fas fa-search"></i> Cari</button>
+    <button class="btn btn-secondary" id="list-btn"><i class="fas fa-list"></i> Semua File</button>
+  </div>
 
-        <section class="auth-section" id="auth-section">
-            <h2><i class="fas fa-key"></i> Autentikasi Diperlukan</h2>
-            <p>Masukkan kunci akses untuk melihat daftar file</p>
-            <div class="auth-form">
-                <div class="form-group">
-                    <label for="access-key">Kunci Akses</label>
-                    <input type="password" id="access-key" placeholder="Masukkan kunci akses">
-                </div>
-                <button class="btn btn-primary" id="auth-btn">
-                    <i class="fas fa-unlock"></i> Masuk
-                </button>
-            </div>
-        </section>
+  <div id="files-section" class="hidden">
+    <h2>Daftar File</h2>
+    <div id="file-list" class="file-list"></div>
+  </div>
 
-        <section class="files-section" id="files-section">
-            <h2><i class="fas fa-folder-open"></i> Daftar File</h2>
-            <div id="repo-info" style="margin: 15px 0; padding: 10px; background: var(--card-dark); border-radius: 6px; display: none;">
-                <i class="fab fa-github"></i> <span id="repo-name"></span>
-            </div>
-            <div class="file-list" id="file-list">
-                <!-- File list will be generated here -->
-            </div>
-        </section>
+  <div id="code-section" class="hidden">
+    <h2 id="code-title"></h2>
+    <button class="btn btn-secondary" id="back-btn"><i class="fas fa-arrow-left"></i> Kembali</button>
+    <button class="btn btn-primary" id="copy-btn"><i class="fas fa-copy"></i> Salin</button>
+    <pre><code id="code-content"></code></pre>
+  </div>
 
-        <section class="code-section" id="code-section">
-            <div class="code-header">
-                <h3 class="code-title" id="code-title">
-                    <i class="fas fa-file-code"></i> <span id="file-name">Nama File</span>
-                </h3>
-                <div class="code-actions">
-                    <button class="btn btn-secondary" id="back-btn">
-                        <i class="fas fa-arrow-left"></i> Kembali
-                    </button>
-                    <button class="btn btn-primary" id="copy-btn">
-                        <i class="fas fa-copy"></i> Salin Kode
-                    </button>
-                </div>
-            </div>
-            <div class="code-content">
-                <pre><code id="code-content">// Kode akan ditampilkan di sini</code></pre>
-            </div>
-        </section>
-    </div>
+  <script>
+    const searchBtn = document.getElementById('search-btn');
+    const listBtn = document.getElementById('list-btn');
+    const backBtn = document.getElementById('back-btn');
+    const copyBtn = document.getElementById('copy-btn');
+    const searchInput = document.getElementById('search-input');
+    const repoUrlInput = document.getElementById('repo-url');
+    const fileList = document.getElementById('file-list');
+    const filesSection = document.getElementById('files-section');
+    const codeSection = document.getElementById('code-section');
+    const codeTitle = document.getElementById('code-title');
+    const codeContent = document.getElementById('code-content');
 
-    <div class="copy-notification" id="copy-notification">
-        <i class="fas fa-check-circle"></i>
-        <span>Kode berhasil disalin!</span>
-    </div>
+    const ACCESS_KEY = "ndraa123good"; // kunci akses
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Elements
-            const authSection = document.getElementById('auth-section');
-            const filesSection = document.getElementById('files-section');
-            const codeSection = document.getElementById('code-section');
-            const fileList = document.getElementById('file-list');
-            const codeTitle = document.getElementById('code-title');
-            const codeContent = document.getElementById('code-content');
-            const copyNotification = document.getElementById('copy-notification');
-            const repoInfo = document.getElementById('repo-info');
-            const repoName = document.getElementById('repo-name');
-            
-            // Buttons
-            const listBtn = document.getElementById('list-btn');
-            const authBtn = document.getElementById('auth-btn');
-            const backBtn = document.getElementById('back-btn');
-            const copyBtn = document.getElementById('copy-btn');
-            const searchBtn = document.getElementById('search-btn');
-            const loadRepoBtn = document.getElementById('load-repo-btn');
-            
-            // Inputs
-            const searchInput = document.getElementById('search-input');
-            const repoInput = document.getElementById('repo-input');
-            const accessKey = document.getElementById('access-key');
-            
-            // State
-            let currentRepo = '';
-            let allFiles = [];
-            let filteredFiles = [];
-            
-            // Event Listeners
-            listBtn.addEventListener('click', function() {
-                authSection.classList.add('active');
-            });
-            
-            authBtn.addEventListener('click', function() {
-                if (accessKey.value === 'ndraa123good') {
-                    authSection.classList.remove('active');
-                    filesSection.classList.add('active');
-                    
-                    if (currentRepo) {
-                        fetchRepoFiles(currentRepo);
-                    } else {
-                        // Use a default repo if none specified
-                        fetchRepoFiles('facebook/react');
-                    }
-                } else {
-                    alert('Kunci akses salah! Silakan coba lagi.');
-                }
-            });
-            
-            loadRepoBtn.addEventListener('click', function() {
-                const repo = repoInput.value.trim();
-                if (repo) {
-                    currentRepo = repo;
-                    authSection.classList.add('active');
-                    repoName.textContent = repo;
-                    repoInfo.style.display = 'block';
-                } else {
-                    alert('Masukkan format username/repository!');
-                }
-            });
-            
-            searchBtn.addEventListener('click', function() {
-                const query = searchInput.value.toLowerCase();
-                if (query) {
-                    filteredFiles = allFiles.filter(file => 
-                        file.name.toLowerCase().includes(query) || 
-                        file.path.toLowerCase().includes(query)
-                    );
-                    renderFileList(filteredFiles);
-                } else {
-                    renderFileList(allFiles);
-                }
-            });
-            
-            backBtn.addEventListener('click', function() {
-                codeSection.classList.remove('active');
-                filesSection.classList.add('active');
-            });
-            
-            copyBtn.addEventListener('click', function() {
-                copyCodeToClipboard();
-            });
-            
-            // Functions
-            function fetchRepoFiles(repo) {
-                fileList.innerHTML = '<div style="padding: 20px; text-align: center;"><div class="loading"></div> Memuat file...</div>';
-                
-                // Using GitHub API to get repository contents
-                fetch(`https://api.github.com/repos/${repo}/contents`)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Repository tidak ditemukan atau akses ditolak');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        allFiles = data.filter(item => item.type === 'file');
-                        renderFileList(allFiles);
-                    })
-                    .catch(error => {
-                        fileList.innerHTML = `<div style="padding: 20px; text-align: center; color: #f85149;">Error: ${error.message}</div>`;
-                    });
-            }
-            
-            function renderFileList(files) {
-                fileList.innerHTML = '';
-                
-                if (files.length === 0) {
-                    fileList.innerHTML = '<div style="padding: 20px; text-align: center;">Tidak ada file yang ditemukan</div>';
-                    return;
-                }
-                
-                files.forEach(file => {
-                    const fileItem = document.createElement('div');
-                    fileItem.classList.add('file-item');
-                    
-                    // Determine icon based on file extension
-                    const extension = file.name.split('.').pop();
-                    let iconClass = 'file-icon default';
-                    
-                    if (['js', 'jsx'].includes(extension)) iconClass = 'file-icon js';
-                    else if (['html', 'htm'].includes(extension)) iconClass = 'file-icon html';
-                    else if (extension === 'css') iconClass = 'file-icon css';
-                    else if (extension === 'py') iconClass = 'file-icon py';
-                    else if (extension === 'json') iconClass = 'file-icon json';
-                    else if (extension === 'md') iconClass = 'file-icon md';
-                    
-                    let icon = 'fa-file';
-                    if (['js', 'jsx'].includes(extension)) icon = 'fa-js';
-                    else if (['html', 'htm'].includes(extension)) icon = 'fa-html5';
-                    else if (extension === 'css') icon = 'fa-css3';
-                    else if (extension === 'py') icon = 'fa-python';
-                    else if (extension === 'json') icon = 'fa-code';
-                    else if (extension === 'md') icon = 'fa-markdown';
-                    
-                    fileItem.innerHTML = `
-                        <div class="${iconClass}">
-                            <i class="fab ${icon}"></i>
-                        </div>
-                        <div class="file-info">
-                            <div class="file-name">${file.name}</div>
-                            <div class="file-desc">${file.path}</div>
-                        </div>
-                    `;
-                    
-                    fileItem.addEventListener('click', () => {
-                        fetchFileContent(file.download_url);
-                    });
-                    
-                    fileList.appendChild(fileItem);
-                });
-            }
-            
-            function fetchFileContent(url) {
-                filesSection.classList.remove('active');
-                codeSection.classList.add('active');
-                
-                codeContent.textContent = 'Memuat konten file...';
-                
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('File tidak dapat diakses');
-                        }
-                        return response.text();
-                    })
-                    .then(text => {
-                        document.getElementById('file-name').textContent = url.split('/').pop();
-                        codeContent.textContent = text;
-                    })
-                    .catch(error => {
-                        codeContent.textContent = `Error: ${error.message}`;
-                    });
-            }
-            
-            function copyCodeToClipboard() {
-                const textArea = document.createElement('textarea');
-                textArea.value = codeContent.textContent;
-                document.body.appendChild(textArea);
-                textArea.select();
-                
-                try {
-                    const successful = document.execCommand('copy');
-                    if (successful) {
-                        showCopyNotification();
-                    }
-                } catch (err) {
-                    console.error('Gagal menyalin teks: ', err);
-                }
-                
-                document.body.removeChild(textArea);
-            }
-            
-            function showCopyNotification() {
-                copyNotification.classList.add('active');
-                
-                setTimeout(() => {
-                    copyNotification.classList.remove('active');
-                }, 3000);
-            }
-        });
-    </script>
+    function parseRepoUrl(url){
+      const parts = url.replace("https://github.com/","").split("/");
+      return { owner:parts[0], repo:parts[1] };
+    }
+
+    async function fetchRepoFiles(owner, repo){
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`);
+      if(!res.ok) throw new Error("Repo tidak ditemukan!");
+      return await res.json();
+    }
+
+    async function searchFile(){
+      const query = searchInput.value.trim().toLowerCase();
+      if(!query) return alert("Masukkan nama file!");
+      const {owner,repo} = parseRepoUrl(repoUrlInput.value);
+      const files = await fetchRepoFiles(owner,repo);
+
+      const found = files.find(f => f.name.toLowerCase() === query);
+      if(found){
+        const key = prompt("Masukkan kunci akses:");
+        if(key===ACCESS_KEY){
+          showFile(found);
+        } else {
+          alert("Kunci salah!");
+        }
+      } else {
+        alert("File tidak ditemukan.");
+      }
+    }
+
+    async function listAllFiles(){
+      const {owner,repo} = parseRepoUrl(repoUrlInput.value);
+      const key = prompt("Masukkan kunci akses:");
+      if(key!==ACCESS_KEY) return alert("Kunci salah!");
+      const files = await fetchRepoFiles(owner,repo);
+      renderFileList(files);
+    }
+
+    async function showFile(file){
+      const res = await fetch(file.download_url);
+      const text = await res.text();
+      codeTitle.textContent = file.name;
+      codeContent.textContent = text;
+      filesSection.classList.add("hidden");
+      codeSection.classList.remove("hidden");
+    }
+
+    function renderFileList(files){
+      fileList.innerHTML="";
+      files.forEach(file=>{
+        const div=document.createElement("div");
+        div.className="file-item";
+        div.textContent=file.name;
+        div.onclick=()=>showFile(file);
+        fileList.appendChild(div);
+      });
+      filesSection.classList.remove("hidden");
+      codeSection.classList.add("hidden");
+    }
+
+    backBtn.onclick=()=>{
+      codeSection.classList.add("hidden");
+      filesSection.classList.remove("hidden");
+    };
+
+    copyBtn.onclick=()=>{
+      navigator.clipboard.writeText(codeContent.textContent).then(()=>{
+        alert("Kode disalin!");
+      });
+    };
+
+    searchBtn.onclick=searchFile;
+    listBtn.onclick=listAllFiles;
+  </script>
 </body>
-                    </html>
+</html>
