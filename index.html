@@ -1,41 +1,77 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="id">
 <head>
-<meta charset="utf-8">
-<title>You Are An Idiot Video</title>
-<style>
-  body {
-    margin: 0;
-    background: black;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    overflow: hidden;
-  }
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  h1 {
-    position: absolute;
-    color: white;
-    font-size: 4em;
-    text-shadow: 2px 2px 8px red;
-    animation: blink 1s infinite;
-  }
-  @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player Sederhana</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .video-container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        video {
+            width: 100%;
+            border-radius: 4px;
+            background-color: #000;
+        }
+        .info-box {
+            background-color: #e7f3fe;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        code {
+            background-color: #eee;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .note {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
-  <video autoplay loop muted playsinline>
-    <source src="youareanidiot.mp4" type="video/mp4">
-    Browser kamu tidak mendukung video.
-  </video>
-  <h1>You are an idiot</h1>
+    <h1>Pemutar Video Sederhana</h1>
+    
+    <div class="video-container">
+        <!-- Tag video untuk menampilkan video -->
+        <video controls>
+            <source src="youareanidiot.mp4" type="video/mp4">
+            Browser Anda tidak mendukung pemutaran video.
+        </video>
+    </div>
+    
+    <div class="info-box">
+        <h3>Informasi Penting:</h3>
+        <p>Pastikan file <code>youareanidiot.mp4</code> berada dalam folder yang sama dengan file HTML ini.</p>
+        <p class="note">Jika video tidak muncul, periksa nama file dan pastikan sudah benar.</p>
+    </div>
+    
+    <div>
+        <h3>Penjelasan Kode:</h3>
+        <p>Tag <code>&lt;video&gt;</code> digunakan untuk menampilkan video di halaman web.</p>
+        <p>Atribut <code>controls</code> menambahkan kontrol pemutaran (play, pause, volume, dll).</p>
+        <p>Tag <code>&lt;source&gt;</code> di dalamnya menentukan sumber video dan tipe filenya.</p>
+    </div>
 </body>
 </html>
