@@ -1,39 +1,123 @@
-<!doctype html>
-<html lang="id">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Loader Viewer — Ndraaw</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Protected Loader Viewer</title>
   <style>
-    :root{--bg:#0f1724;--card:#0b1220;--accent:#7c3aed;--muted:#9aa4b2;--success:#10b981}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;background:linear-gradient(180deg,#061226 0%, #071428 100%);color:#e6eef8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
-    .container{width:100%;max-width:980px}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:26px;border-radius:14px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
-    header{display:flex;gap:18px;align-items:center}
-    .logo{width:56px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--accent),#5b21b6);font-weight:700;font-size:20px}
-    h1{margin:0;font-size:20px}
-    p.lead{margin:6px 0 0;color:var(--muted);font-size:13px}
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #1e1e2f, #2d2d44);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: #2f2f46;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      width: 100%;
+      max-width: 600px;
+    }
+    input, button {
+      padding: 0.6rem;
+      border-radius: 6px;
+      border: none;
+      margin: 0.3rem 0;
+      font-size: 1rem;
+    }
+    input {
+      width: 100%;
+    }
+    button {
+      background: #4a90e2;
+      color: #fff;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #357ab7;
+    }
+    pre {
+      background: #1e1e2f;
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-top: 1rem;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔒 Loader File Viewer</h1>
+  <div class="card">
+    <label>Nama file (contoh: <b>auth.lua</b>):</label>
+    <input type="text" id="filename" placeholder="auth.lua" />
+    <button onclick="fetchFile()">Cari File</button>
 
-    .grid{display:grid;grid-template-columns:1fr 360px;gap:20px;margin-top:18px}
-    .left{min-height:320px}
-    .right{min-height:320px}
+    <div id="keySection" class="hidden">
+      <p>Masukkan kunci untuk melihat isi file:</p>
+      <input type="password" id="keyInput" placeholder="Masukkan kunci..." />
+      <button onclick="checkKey()">Submit</button>
+    </div>
 
-    label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}
-    .input, .select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.01);color:inherit;font-size:14px}
-    .row{display:flex;gap:10px}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:0;background:var(--accent);color:white;cursor:pointer;font-weight:600}
-    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.03)}
-    .muted{color:var(--muted);font-size:13px}
+    <pre id="fileContent" class="hidden"></pre>
+  </div>
 
-    .resultBox{margin-top:14px;background:#051025;border-radius:10px;padding:12px;border:1px solid rgba(255,255,255,0.02)}
-    pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;font-size:13px;line-height:1.5;margin:0}
+  <script>
+    let currentFileUrl = "";
+    const correctKey = "ndraa123good";
 
-    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(0deg, rgba(2,6,23,0.6), rgba(2,6,23,0.6));backdrop-filter:blur(3px)}
-    .modalCard{width:420px;background:var(--card);padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+    function fetchFile() {
+      const filename = document.getElementById("filename").value.trim();
+      if (!filename) {
+        alert("Masukkan nama file dulu!");
+        return;
+      }
+      currentFileUrl = location.origin + "/" + filename;
+      fetch(currentFileUrl)
+        .then(res => {
+          if (!res.ok) throw new Error("File tidak ditemukan");
+          return res.text();
+        })
+        .then(() => {
+          document.getElementById("keySection").classList.remove("hidden");
+          alert("File ditemukan, masukkan kunci untuk melihat isi!");
+        })
+        .catch(err => {
+          alert("Error: " + err.message);
+        });
+    }
 
-    .small{font-size:12px;color:var(--muted)}
-    .tag{display:inline-block;background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-size:12px}
+    function checkKey() {
+      const inputKey = document.getElementById("keyInput").value;
+      if (inputKey === correctKey) {
+        fetch(currentFileUrl)
+          .then(res => res.text())
+          .then(text => {
+            document.getElementById("fileContent").textContent = text;
+            document.getElementById("fileContent").classList.remove("hidden");
+          });
+      } else {
+        alert("Kunci salah!");
+      }
+    }
+  </script>
+</body>
+</html>
 
     .hidden{display:none}
     footer{margin-top:18px;display:flex;justify-content:space-between;align-items:center}
