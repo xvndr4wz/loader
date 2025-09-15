@@ -1,40 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Protected Loader Viewer</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      min-height: 100vh;
-      margin: 0;
-      padding: 2rem;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repo File Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-6">
+  <h1 class="text-2xl font-bold mb-6">Repo File Viewer</h1>
+
+  <div id="fileList" class="grid gap-3 w-full max-w-2xl"></div>
+
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center">
+    <div class="bg-gray-800 rounded-xl shadow-lg p-6 w-full max-w-lg">
+      <h2 class="text-lg font-semibold mb-4">Enter Access Key</h2>
+      <input id="keyInput" type="password" placeholder="Enter key" class="w-full p-2 rounded bg-gray-700 text-white">
+      <div class="flex justify-end mt-4">
+        <button id="cancelBtn" class="px-4 py-2 bg-gray-600 rounded-lg mr-2">Cancel</button>
+        <button id="submitKey" class="px-4 py-2 bg-blue-600 rounded-lg">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Viewer -->
+  <div id="codeContainer" class="hidden mt-6 w-full max-w-4xl">
+    <pre><code id="codeBlock" class="hljs rounded-lg p-4 block overflow-x-auto"></code></pre>
+  </div>
+
+  <script>
+    const fileList = document.getElementById("fileList");
+    const modal = document.getElementById("modal");
+    const keyInput = document.getElementById("keyInput");
+    const submitKey = document.getElementById("submitKey");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const codeContainer = document.getElementById("codeContainer");
+    const codeBlock = document.getElementById("codeBlock");
+
+    let selectedFile = null;
+
+    async function loadFiles() {
+      try {
+        const res = await fetch(".");
+        const text = await res.text();
+        const parser = new DOMParser();
+        const html = parser.parseFromString(text, "text/html");
+        const links = [...html.querySelectorAll("a")].map(a => a.getAttribute("href"));
+
+        const files = links.filter(l => l && !l.endsWith("/") && l !== "index.html");
+
+        fileList.innerHTML = files.map(file => `
+          <button class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg text-left w-full" data-file="${file}">
+            ${file}
+          </button>
+        `).join("");
+
+        document.querySelectorAll("[data-file]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            selectedFile = btn.dataset.file;
+            keyInput.value = "";
+            modal.classList.remove("hidden");
+            keyInput.focus();
+          });
+        });
+      } catch (err) {
+        fileList.innerHTML = `<p class='text-red-400'>Failed to load files.</p>`;
+      }
     }
-    h1 {
-      margin-bottom: 1rem;
-      font-size: 2rem;
-      font-weight: 600;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.6);
-    }
-    .card {
-      backdrop-filter: blur(12px);
-      background: rgba(255,255,255,0.08);
-      padding: 2rem;
-      border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-      width: 100%;
-      max-width: 700px;
-      animation: fadeIn 0.6s ease;
-    }
-    input, button {
-      padding: 0.8rem 1rem;
+
+    submitKey.addEventListener("click", async () => {
+      if (keyInput.value === "ndraa123good") {
+        modal.classList.add("hidden");
+        if (selectedFile) {
+          const res = await fetch(selectedFile);
+          const code = await res.text();
+          codeBlock.textContent = code;
+          hljs.highlightElement(codeBlock);
+          codeContainer.classList.remove("hidden");
+          codeContainer.scrollIntoView({ behavior: "smooth" });
+        }
+      } else {
+        alert("Invalid key!");
+      }
+    });
+
+    cancelBtn.addEventListener("click", () => modal.classList.add("hidden"));
+
+    loadFiles();
+  </script>
+</body>
+</html>      padding: 0.8rem 1rem;
       border-radius: 8px;
       border: none;
       margin: 0.4rem 0;
