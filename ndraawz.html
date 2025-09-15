@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Protected Loader Viewer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 {
+      margin-bottom: 1rem;
+      font-size: 2rem;
+      font-weight: 600;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+    }
+    .card {
+      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,0.08);
+      padding: 2rem;
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+      width: 100%;
+      max-width: 700px;
+      animation: fadeIn 0.6s ease;
+    }
+    input, button {
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      border: none;
+      margin: 0.4rem 0;
+      font-size: 1rem;
+      outline: none;
+      transition: 0.2s;
+    }
+    input {
+      width: 100%;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    input::placeholder {
+      color: #ccc;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover {
+      filter: brightness(1.1);
+    }
+    pre {
+      background: #1b1b2f;
+      padding: 1rem;
+      border-radius: 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-top: 1rem;
+      font-family: "Fira Code", monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      position: relative;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #4a90e2;
+      border: none;
+      border-radius: 6px;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .hidden { display: none; }
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(20px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+  </style>
+</head>
+<body>
+  <h1>🔒 Loader File Viewer</h1>
+  <div class="card">
+    <label>Masukkan nama file (contoh: <b>auth.lua</b>):</label>
+    <input type="text" id="filename" placeholder="auth.lua" />
+    <button onclick="fetchFile()">Cari File</button>
+
+    <div id="keySection" class="hidden">
+      <p>Kunci diperlukan untuk membuka file:</p>
+      <input type="password" id="keyInput" placeholder="Masukkan kunci..." />
+      <button onclick="checkKey()">Submit</button>
+    </div>
+
+    <div id="fileWrapper" class="hidden">
+      <pre id="fileContent"></pre>
+      <button class="copy-btn" onclick="copyCode()">Copy</button>
+    </div>
+  </div>
+
+  <script>
+    let currentFileUrl = "";
+    const correctKey = "ndraa123good";
+
+    function fetchFile() {
+      const filename = document.getElementById("filename").value.trim();
+      if (!filename) {
+        alert("Masukkan nama file dulu!");
+        return;
+      }
+      currentFileUrl = location.origin + "/" + filename;
+      fetch(currentFileUrl)
+        .then(res => {
+          if (!res.ok) throw new Error("File tidak ditemukan");
+          return res.text();
+        })
+        .then(() => {
+          document.getElementById("keySection").classList.remove("hidden");
+          alert("File ditemukan, masukkan kunci!");
+        })
+        .catch(err => {
+          alert("Error: " + err.message);
+        });
+    }
+
+    function checkKey() {
+      const inputKey = document.getElementById("keyInput").value;
+      if (inputKey === correctKey) {
+        fetch(currentFileUrl)
+          .then(res => res.text())
+          .then(text => {
+            document.getElementById("fileContent").textContent = text;
+            document.getElementById("fileWrapper").classList.remove("hidden");
+          });
+      } else {
+        alert("Kunci salah!");
+      }
+    }
+
+    function copyCode() {
+      const text = document.getElementById("fileContent").textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Kode berhasil disalin!");
+      });
+    }
+  </script>
+</body>
+</html>
