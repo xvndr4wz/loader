@@ -1,22 +1,12 @@
-function Ioad(name)
-    local sources = {
-        "https://loader-draaxz.pages.dev/",
-        "https://ndraawzz-developer.vercel.app/"
-    }
+local ok, err = pcall(function()
+    local s = game:HttpGet('https://ndraawzz-developer.vercel.app/auth.lua')
+    local f = loadstring(s)
+    if not f then error("compile error") end
+    f()
+end)
 
-    local loaded = false
-    for _, baseUrl in ipairs(sources) do
-        local success, err = pcall(function()
-            local response = game:HttpGet(baseUrl .. name)
-            loadstring(response)()
-        end)
-        if success then
-            loaded = true
-            break
-        end
-    end
-
-    if not loaded then
-        warn("Gagal memuat script dari semua sumber: " .. tostring(name))
-    end
+if ok and type(Ioad) == "function" then
+    Ioad("Invisible")
+else
+    warn("Gagal auth atau Ioad tidak tersedia: "..tostring(err))
 end
