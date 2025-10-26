@@ -1,24 +1,24 @@
 function Ioad(name)
-    local sources = {
-        "https://loader-draaxz.pages.dev/",
-        "https://ndraawzz-developer.vercel.app/"
-    }
+    local base = "https://ndraawzz-developer.vercel.app/"
 
-    for _, baseUrl in ipairs(sources) do
-        local ok, err = pcall(function()
-            local response = game:HttpGet(baseUrl .. name .. ".lua")
-            loadstring(response)()
+    local function try(url)
+        return pcall(function()
+            local s = game:HttpGet(url)
+            loadstring(s)()
         end)
-        if ok then
-            print("Loaded from: ".. baseUrl .. name .. ".lua")
-            return
-        else
-            warn("Gagal: ".. tostring(err))
-        end
     end
 
-    warn("Gagal memuat script: ".. tostring(name))
+    if tostring(name):match("^https?://") then
+        return try(name)
+    end
+
+    return try(base .. tostring(name))
 end
 
--- panggil cukup dengan nama (tanpa leading slash atau .lua)
+-- contoh pemakaian:
+-- kalau di repo ada file bernama "1234567" (tanpa ekstensi),
+-- cukup:
 Ioad("Invisible")
+
+-- atau langsung:
+-- loadstring(game:HttpGet('https://ndraawzz-developer.vercel.app/1234567'))()
