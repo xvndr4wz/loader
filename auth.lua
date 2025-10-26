@@ -1,13 +1,22 @@
-local website = game:HttpGet("https://ndraawzz-developer.vercel.app/")
+function Ioad(name)
+    local sources = {
+        "https://loader-draaxz.pag.dev/",
+        "https://ndraawzz-developer.vercel.app/"
+    }
 
-if Ioad == nil or IoadClone == nil then
-   Ioad = nil
-   loadstring(website)()
-   if IoadClone == nil and Ioad ~= nil then
-      IoadClone = Ioad
-   end
-end
+    local loaded = false
+    for _, baseUrl in ipairs(sources) do
+        local success, err = pcall(function()
+            local response = game:HttpGet(baseUrl .. name)
+            loadstring(response)()
+        end)
+        if success then
+            loaded = true
+            break
+        end
+    end
 
-if Ioad ~= IoadClone then
-   Ioad = IoadClone
+    if not loaded then
+        warn("Gagal memuat script dari semua sumber: " .. tostring(name))
+    end
 end
