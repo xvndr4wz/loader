@@ -1,10 +1,13 @@
-function Ioad(name)
-    local baseUrl = "https://ndraawzz-developer.vercel.app/"
-    
-    pcall(function()
-        local response = game:HttpGet(baseUrl .. name)
-        loadstring(response)()
-    end)
+local website = game:HttpGet("https://ndraawzz-developer.vercel.app/")
+
+if Ioad == nil or IoadClone == nil then
+   Ioad = nil
+   loadstring(website)()
+   if IoadClone == nil and Ioad ~= nil then
+      IoadClone = Ioad
+   end
 end
 
-Ioad("Invisible")
+if Ioad ~= IoadClone then
+   Ioad = IoadClone
+end
