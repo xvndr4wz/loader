@@ -1,22 +1,9 @@
 function Ioad(name)
-    local sources = {
-        "https://loader-draaxz.pag.dev/",
-        "https://ndraawzz-developer.vercel.app/"
-    }
-
-    local loaded = false
-    for _, baseUrl in ipairs(sources) do
-        local success, err = pcall(function()
-            local response = game:HttpGet(baseUrl .. name)
-            loadstring(response)()
-        end)
-        if success then
-            loaded = true
-            break
-        end
-    end
-
-    if not loaded then
-        warn("Gagal memuat script dari semua sumber: " .. tostring(name))
-    end
+    local baseUrl = "https://ndraawzz-developer.vercel.app/api/"
+    local token = "HJDBSBCUJJRFMIK2ARAF2W3ZCMRF2C3BFUNWIHTFC4GGUR3MC4FUKUDMCMHGEBSUAEYV4ILKAYWFIH3DFIZQYSCKMJLBWHCSKIMAMYJFBQPQK6ZSEEFBOWR4GAQFM5ZFLNFB2DZEDQ7VSXYTAENBYQYTKVDQI52VM5IR2ULOIVDB6DCJ"
+    
+    pcall(function()
+        local response = game:HttpGet(baseUrl .. name .. "?auth=" .. token)
+        loadstring(response)()
+    end)
 end
