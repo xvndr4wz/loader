@@ -12,16 +12,16 @@ local redzlib = {
 	Themes = {
 		Darker = {
 			["Color Hub 1"] = ColorSequence.new({
-				ColorSequenceKeypoint.new(0.00, Color3.fromRGB(180, 30, 0)),
-				ColorSequenceKeypoint.new(0.40, Color3.fromRGB(255, 85, 0)),
-				ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 165, 0)),
-				ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 220, 100))
+				ColorSequenceKeypoint.new(0.00, Color3.fromRGB(140, 25, 0)),
+				ColorSequenceKeypoint.new(0.40, Color3.fromRGB(200, 60, 0)),
+				ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 120, 0)),
+				ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 180, 50))
 			}),
-			["Color Hub 2"] = Color3.fromRGB(120, 35, 0),
-			["Color Stroke"] = Color3.fromRGB(255, 100, 20),
-			["Color Theme"] = Color3.fromRGB(255, 120, 0),
+			["Color Hub 2"] = Color3.fromRGB(40, 20, 5), -- Latar belakang panel dalam yang gelap
+			["Color Stroke"] = Color3.fromRGB(200, 80, 10), -- Garis/Bingkai
+			["Color Theme"] = Color3.fromRGB(220, 100, 15), -- Warna Tombol/Aksen
 			["Color Text"] = Color3.fromRGB(255, 255, 255),
-			["Color Dark Text"] = Color3.fromRGB(200, 180, 150)
+			["Color Dark Text"] = Color3.fromRGB(180, 160, 140)
 		}
 	},
 	Info = {
