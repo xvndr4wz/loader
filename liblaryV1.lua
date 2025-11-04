@@ -12,15 +12,15 @@ local redzlib = {
 	Themes = {
 		Darker = {
 			["Color Hub 1"] = ColorSequence.new({
-				ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 165, 0)),
-				ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 165, 0)),
-				ColorSequenceKeypoint.new(1.00, Color3.fromRGB(50, 50, 50))
+				ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 100, 0)),
+				ColorSequenceKeypoint.new(0.50, Color3.fromRGB(255, 165, 0)),
+				ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 200, 50)) -- Efek kuning seperti puncak api
 			}),
-			["Color Hub 2"] = Color3.fromRGB(0, 0, 0),
-			["Color Stroke"] = Color3.fromRGB(40, 40, 40),
-			["Color Theme"] = Color3.fromRGB(255, 165, 0),
-			["Color Text"] = Color3.fromRGB(243, 243, 243),
-			["Color Dark Text"] = Color3.fromRGB(180, 180, 180)
+			["Color Hub 2"] = Color3.fromRGB(80, 40, 0), -- Oranye yang sangat gelap untuk latar belakang panel sekunder
+			["Color Stroke"] = Color3.fromRGB(150, 50, 0), -- Oranye yang lebih pekat untuk garis batas
+			["Color Theme"] = Color3.fromRGB(255, 140, 0), -- Oranye utama untuk tombol dan aksen
+			["Color Text"] = Color3.fromRGB(243, 243, 243), -- Teks putih
+			["Color Dark Text"] = Color3.fromRGB(180, 180, 180) -- Teks abu-abu terang
 		}
 	},
 	Info = {
