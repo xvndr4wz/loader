@@ -1,4 +1,4 @@
-const SECRET_KEY = "KONTOL999"; 
+const SECRET_KEY = "KONTOL"; 
 
 function toHex(text, key) {
     let result = "";
@@ -13,64 +13,51 @@ module.exports = async (req, res) => {
     const { step, id } = req.query;
     const host = req.headers.host;
     const fullUrl = `https://${host}${req.url.split('?')[0]}`;
-    const agent = req.headers['user-agent'] || "";
 
-    // Proteksi User-Agent (Agar tidak bisa dibuka sembarang browser)
-    if (!agent.includes("Roblox")) {
-        return res.status(403).send("Unauthorized: Use Roblox.");
-    }
-
-    // --- STEP 1: Loader ---
     if (!step) {
         const token = Math.random().toString(36).substring(7);
-        // Script ini akan dikirim ke executor kamu
-        return res.status(200).send(`
+        
+        // Teks Lua yang dikirim ke Roblox
+        const luaLoader = `
             local r = (syn and syn.request) or (http and http.request) or http_request or request
-            if not r then return warn("Executor tidak support request!") end
+            if not r then return end
 
-            local url = "${fullUrl}?step=final&id=${token}"
-            -- PENTING: Header User-Agent harus disertakan di sini agar tidak kena blokir server
             local res = r({
-                Url = url, 
-                Method = "GET", 
-                Headers = { ["User-Agent"] = "Roblox" } 
+                Url = "${fullUrl}?step=final&id=${token}",
+                Method = "GET",
+                Headers = {["User-Agent"] = "Roblox"}
             })
 
-            local function decode(hex, k)
-                local r = ""
-                for i = 1, #hex, 2 do
-                    local b = tonumber(hex:sub(i, i+1), 16)
+            -- Mengambil Hex dari Status Message
+            local hex = res.StatusMessage or res.status_message or ""
+
+            local function decode(h, k)
+                local out = ""
+                for i = 1, #h, 2 do
+                    local b = tonumber(h:sub(i, i+1), 16)
                     if b then
-                        r = r .. string.char(bit32.bxor(b, string.byte(k, ((i-1)/2 % #k) + 1)))
+                        out = out .. string.char(bit32.bxor(b, string.byte(k, ((i-1)/2 % #k) + 1)))
                     end
                 end
-                return r
+                return out
             end
 
-            -- Mencari header X-Data (case-insensitive)
-            local raw = nil
-            for k, v in pairs(res.Headers) do
-                if k:lower() == "x-data" then raw = v break end
+            if #hex > 5 then
+                local s = decode(hex, "${SECRET_KEY}")
+                loadstring(s)()
             end
-
-            if raw then
-                local s = decode(raw, "${SECRET_KEY}")
-                local f = loadstring(s)
-                if f then f() end
-            else
-                warn("Gagal mengambil Payload dari Header!")
-            end
-        `.trim());
+        `;
+        return res.status(200).send(luaLoader.trim());
     }
 
-    // --- STEP 2: Final Payload ---
     if (step === "final") {
         const payload = `game.Players.LocalPlayer.Character.Humanoid:TakeDamage(20)`;
+        const hex = toHex(payload.trim(), SECRET_KEY);
         
-        // Kita paksa nama header jadi huruf kecil agar konsisten di semua executor
-        res.setHeader('x-data', toHex(payload.trim(), SECRET_KEY));
-        
-        // Hasil yang muncul di GUI Fetcher (Body)
-        return res.status(200).send(SECRET_KEY);
+        // Kuncinya di sini: 
+        // Kita kirim Status Code 201, tapi pesannya adalah HEX Script kita.
+        // GUI Fetcher cuma bakal liat Body (SECRET_KEY)
+        res.statusMessage = hex; 
+        return res.status(201).send(SECRET_KEY);
     }
 };
