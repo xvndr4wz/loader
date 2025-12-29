@@ -1,120 +1,121 @@
 const https = require('https');
-const crypto = require('crypto');
 
 // ==========================================
 //           SETTINGS / CONFIGURATION
 // ==========================================
 const SETTINGS = {
-    SECRET_SALT: "NDRAAWZAJA",
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
-    TOTAL_LAYERS: 7,
-    PLAIN_TEXT_RESP: "NGAPAIN LIAT LIAT?",
-    REAL_SCRIPT: `
-        local player = game.Players.LocalPlayer
-        local character = player.Character or player.CharacterAdded:Wait()
-        local humanoid = character:WaitForChild("Humanoid")
-
-        if humanoid and humanoid.Health > 0 then
-            humanoid.Health = math.max(0, humanoid.Health - 50)
-            print("Health reduced by 50!")
-        end
-        warn("ZiFi Security: Script Verified and Loaded!")
-    `
+    TOTAL_LAYERS: 5,
+    PLAIN_TEXT_RESP: "NGAPAIN BAN?",
+    REAL_SCRIPT: `print("ZiFi: Authorized!")` // Isi script asli kamu
 };
 
 // ==========================================
-//             CORE LOGIC (DANGER)
+//             UTILITY FUNCTIONS
 // ==========================================
-let sessions = {};
-let blacklist = {}; 
 
-async function sendToDiscord(msg) {
-    const data = JSON.stringify({ content: msg });
+// Fungsi mengubah kode negara (ID, US) menjadi Emoji Bendera (🇮🇩, 🇺🇸)
+function getFlagEmoji(countryCode) {
+    if (!countryCode || countryCode.length !== 2) return "🌐";
+    return countryCode.toUpperCase().replace(/./g, char => 
+        String.fromCodePoint(127397 + char.charCodeAt(0))
+    );
+}
+
+// Fungsi kirim ke Discord
+async function sendToDiscord(data) {
+    const timeNow = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+    const embed = {
+        title: "🛡️ System Success: Handshake Verified",
+        color: 0x2ecc71, // Warna Hijau
+        fields: [
+            { name: "👤 User", value: `\`${data.username}\``, inline: true },
+            { name: "🌐 IP", value: `\`${data.ip}\``, inline: true },
+            { name: "📍 Negara", value: `${data.flag} ${data.country}`, inline: true },
+            { name: "⏰ Waktu (WIB)", value: `\`${timeNow}\``, inline: false },
+            { name: "💻 Device Agent", value: `\`${data.agent}\``, inline: false }
+        ],
+        footer: { text: "ZiFi Security System" }
+    };
+
+    const payload = JSON.stringify({ embeds: [embed] });
     const url = new URL(SETTINGS.WEBHOOK);
+    
     return new Promise((resolve) => {
         const req = https.request({
-            hostname: url.hostname,
-            path: url.pathname,
-            method: 'POST',
-            timeout: 1500,
+            hostname: url.hostname, path: url.pathname, method: 'POST',
             headers: { 'Content-Type': 'application/json' }
-        }, (res) => resolve(res.statusCode >= 200 && res.statusCode < 300));
-        req.on('error', () => resolve(false));
-        req.write(data);
+        });
+        req.write(payload);
         req.end();
+        resolve();
     });
 }
+
+// ==========================================
+//                MAIN EXPORT
+// ==========================================
+let sessions = {};
 
 module.exports = async (req, res) => {
     res.setHeader('Content-Type', 'text/plain');
 
     try {
         const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
-        const agent = req.headers['user-agent'] || "";
-        const { step, id, key, unban_key, sig } = req.query;
+        const countryCode = req.headers['x-vercel-ip-country'] || "??"; // Deteksi negara otomatis dari Vercel
+        const agent = req.headers['user-agent'] || "Unknown";
+        const { step, id, key, user } = req.query; // Kita ambil 'user' dari URL
         const host = req.headers.host;
-        const currentPath = req.url.split('?')[0]; 
-        const now = Date.now();
-
-        // Ban System
-        if (unban_key && sig) {
-            const expectedSig = crypto.createHmac('sha256', SETTINGS.SECRET_SALT).update(unban_key).digest('hex');
-            if (sig === expectedSig) { delete blacklist[ip]; return res.status(200).send("Access Restored."); }
-        }
-        if (blacklist[ip]) return res.status(403).send("warn('Zifi: Banned.')");
+        const currentPath = req.url.split('?')[0];
 
         const currentStep = parseInt(step) || 0;
 
-        // Security Validation
-        if (currentStep > 0) {
-            if (!sessions[ip] || sessions[ip].lastStep !== currentStep - 1 || key !== sessions[ip].nextKey) {
-                return res.status(200).send("warn('Vercel: Handshake Error')");
-            }
-            if (now - sessions[ip].lastTime < 100) { 
-                blacklist[ip] = true;
-                return res.status(403).send("warn('Vercel: Connection Terminated')");
-            }
-        }
-
-        // STEP 0: Initial
+        // LAYER 0: Inisialisasi
         if (currentStep === 0) {
             if (!agent.includes("Roblox")) return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
             
             const sessionID = Math.random().toString(36).substring(2, 12);
             const firstKey = Math.random().toString(36).substring(2, 8);
-            sessions[ip] = { id: sessionID, lastStep: 0, nextKey: firstKey, lastTime: now };
+            sessions[ip] = { id: sessionID, lastStep: 0, nextKey: firstKey };
 
+            // Kita tambahkan logic di Lua untuk kirim Username (game.Players.LocalPlayer.Name)
             return res.status(200).send(
 `local sid, nkey = "${sessionID}", "${firstKey}"
-task.wait(0.2)
-local response = game:HttpGet("https://${host}${currentPath}?step=1&id="..sid.."&key="..nkey, true)
-if response then loadstring(response)() end`
-            );
-        }
-
-        // STEP 1 to (N-1): Intermediate
-        if (currentStep >= 1 && currentStep < SETTINGS.TOTAL_LAYERS) {
-            const nextKey = Math.random().toString(36).substring(2, 8);
-            sessions[ip].lastStep = currentStep;
-            sessions[ip].nextKey = nextKey;
-            sessions[ip].lastTime = now;
-
-            return res.status(200).send(
-`-- Layer ${currentStep} Handshake
-task.wait(0.15)
-local r = game:HttpGet("https://${host}${currentPath}?step=${currentStep + 1}&id=${id}&key=${nextKey}", true)
+local user = game:GetService("Players").LocalPlayer.Name
+task.wait(0.5)
+local r = game:HttpGet("https://${host}${currentPath}?step=1&id="..sid.."&key="..nkey.."&user="..user, true)
 if r then loadstring(r)() end`
             );
         }
 
-        // FINAL STEP
-        if (currentStep === SETTINGS.TOTAL_LAYERS) {
-            await sendToDiscord(`🛡️ **System Success**\nIP: \`${ip}\` (Real IP) passed ${SETTINGS.TOTAL_LAYERS} layers.`);
-            delete sessions[ip];
-            return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
+        // LAYER 1 - 4: Handshake (Meneruskan parameter user)
+        if (currentStep >= 1 && currentStep < SETTINGS.TOTAL_LAYERS) {
+            const nextKey = Math.random().toString(36).substring(2, 8);
+            sessions[ip].lastStep = currentStep;
+            sessions[ip].nextKey = nextKey;
+
+            return res.status(200).send(
+`task.wait(0.5)
+local r = game:HttpGet("https://${host}${currentPath}?step=${currentStep + 1}&id=${id}&key=${nextKey}&user=${user}", true)
+if r then loadstring(r)() end`
+            );
         }
 
-    } catch (error) {
-        return res.status(200).send("warn('Vercel: 500 Error')");
+        // FINAL STEP: System Success
+        if (currentStep === SETTINGS.TOTAL_LAYERS) {
+            await sendToDiscord({
+                ip: ip,
+                country: countryCode,
+                flag: getFlagEmoji(countryCode),
+                agent: agent,
+                username: user || "Unknown User"
+            });
+            
+            delete sessions[ip];
+            return res.status(200).send(SETTINGS.REAL_SCRIPT);
+        }
+
+    } catch (e) {
+        return res.status(200).send("warn('Vercel: Error')");
     }
 };
