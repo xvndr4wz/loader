@@ -61,7 +61,7 @@ async function sendWebhookLog(message) {
 
     return new Promise(function(resolve) {
         const req = https.request(options, function(res) {
-            res.on('data', function() {});
+            res.on('data', function(chunk) {});
             res.on('end', function() { resolve(true); });
         });
         req.on('error', function() { resolve(false); });
@@ -95,13 +95,12 @@ module.exports = async function(req, res) {
 
     // == GATEKEEPER : VALIDASI AWAL == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
-    if (!isRoblox) {
-        // MENGEMBALIKAN PLAIN TEXT RESP KETIKA BUKAN ROBLOX
-        return res.status(200).end(SETTINGS.PLAIN_TEXT_RESP);
+    if (isRoblox === false) {
+        return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
     }
 
     if (blacklist[ip] === true) {
-        return res.status(403).end("SECURITY : BANNED ACCESS!");
+        return res.status(403).send("SECURITY : BANNED ACCESS!");
     }
 
     try {
@@ -111,19 +110,26 @@ module.exports = async function(req, res) {
 
             // == CHECK APAKAH SESI ADA (GHOST LINK CHECK) == \\
             if (session === undefined) {
-                return res.status(403).end("SECURITY : SESSION NOT FOUND.");
+                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
             }
 
             // == IP LOCK CHECK == \\
             if (session.ownerIP !== ip) {
-                return res.status(403).end("SECURITY : IP MISMATCH / INVALID SESSION.");
+                return res.status(403).send("SECURITY : IP MISMATCH / INVALID SESSION.");
+            }
+
+            // == VALIDASI URUTAN STEP RANDOM (1-300) == \\
+            const expectedStep = session.stepSequence[session.currentIndex];
+            if (currentStep !== expectedStep) {
+                delete sessions[id];
+                return res.status(403).send("SECURITY : INVALID SEQUENCE.");
             }
 
             //  == ONE-TIME USE == \\
             if (session.used === true) {
                 blacklist[ip] = true;
                 await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
-                return res.status(403).end("SECURITY : LINK EXPIRED (OTP).");
+                return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
             }
 
             // == EXPIRY CHECK == \\
@@ -131,24 +137,22 @@ module.exports = async function(req, res) {
             const keyDuration = now - session.keyCreatedAt;
             if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
-                return res.status(403).end("SECURITY : SESSION/KEY EXPIRED.");
+                return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
             }
 
             // == KEY & TIMING HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
-                return res.status(403).end("SECURITY : HANDSHAKE ERROR.");
+                return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
             }
 
-            // == LOGIC TIMING SUPER STRICT (TANPA TOLERANSI) == \\
+            // == TIMING CHECK (TANPA TOLERANSI) == \\
             const timeSinceLastRequest = now - session.lastTime;
-            
-            // Jika waktu datang lebih cepat sedikitpun dari requiredWait, banned.
             if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (STRICT).");
-                return res.status(403).end("SECURITY : TIMING VIOLATION.");
+                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (No Tolerance).");
+                return res.status(403).send("SECURITY : TIMING VIOLATION.");
             }
             session.used = true;
         }
@@ -159,8 +163,17 @@ module.exports = async function(req, res) {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
+            // == GENERATE 5 STEP RANDOM UNIK (1-300) == \\
+            let sequence = [];
+            while(sequence.length < SETTINGS.TOTAL_LAYERS) {
+                let r = Math.floor(Math.random() * 300) + 1;
+                if(!sequence.includes(r)) sequence.push(r);
+            }
+
             sessions[newSessionID] = { 
                 ownerIP: ip, 
+                stepSequence: sequence,
+                currentIndex: 0,
                 nextKey: nextKey, 
                 lastTime: now, 
                 startTime: now, 
@@ -169,25 +182,31 @@ module.exports = async function(req, res) {
                 used: false 
             };
 
-            const nextUrl = "https://" + host + currentPath + "?" + "1." + newSessionID + "." + nextKey;
+            const firstStep = sequence[0];
+            const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
             const luaScript = "-- Layer 1\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             
             return res.status(200).send(luaScript);
         }
 
         // == ROTASI GHOST ID == \\
-        if (currentStep < SETTINGS.TOTAL_LAYERS) {
-            const nextStepNumber = currentStep + 1;
+        if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
+            const session = sessions[id];
+            session.currentIndex++; 
+            
+            const nextStepNumber = session.stepSequence[session.currentIndex];
             const newSessionID = Math.random().toString(36).substring(2, 12); 
             const nextKey = Math.random().toString(36).substring(2, 8); 
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
             // == PINDAHKAN DATA KE ID BARU == \\
             sessions[newSessionID] = { 
-                ownerIP: sessions[id].ownerIP,
+                ownerIP: session.ownerIP,
+                stepSequence: session.stepSequence,
+                currentIndex: session.currentIndex,
                 nextKey: nextKey, 
                 lastTime: now, 
-                startTime: sessions[id].startTime, 
+                startTime: session.startTime, 
                 keyCreatedAt: now, 
                 requiredWait: waitTime, 
                 used: false 
@@ -197,14 +216,14 @@ module.exports = async function(req, res) {
             delete sessions[id]; 
 
             const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
-            const luaScript = "-- Layer " + nextStepNumber + "\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+            const luaScript = "-- Layer " + (session.currentIndex + 1) + "\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
 
             return res.status(200).send(luaScript);
         }
 
         // == FINAL KIRIM SCRIPT == \\
-        if (currentStep === SETTINGS.TOTAL_LAYERS) {
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
+        if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
+            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer acak.");
             delete sessions[id];
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
