@@ -10,10 +10,10 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "kenapa?",
+    PLAIN_TEXT_RESP: "kepa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
+        print("Ndraawz Security: Strict Timing Logic Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -108,7 +108,7 @@ module.exports = async function(req, res) {
         if (currentStep > 0) {
             const session = sessions[id];
 
-  // == CHECK APAKAH SESI ADA (GHOST LINK CHECK) == \\
+            // == CHECK APAKAH SESI ADA (GHOST LINK CHECK) == \\
             if (session === undefined) {
                 return res.status(403).send("SECURITY : SESSION NOT FOUND.");
             }
@@ -125,27 +125,29 @@ module.exports = async function(req, res) {
                 return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
             }
 
+            // == STAMPEL WAKTU (STRICT TIMING CHECK) == \\
+            // Menghitung selisih waktu dari sejak link ini diberikan
+            const timeDiff = now - session.keyCreatedAt;
+            if (timeDiff < session.requiredWait) {
+                blacklist[ip] = true;
+                delete sessions[id];
+                await sendWebhookLog("🚫 **DETECT BOT (STRICT)**\n**IP:** `" + ip + "`\n**Selisih:** " + timeDiff + "ms\n**Syarat:** " + session.requiredWait + "ms");
+                return res.status(403).send("SECURITY : TIMING VIOLATION (TOO FAST)!");
+            }
+
             // == EXPIRY CHECK == \\
             const sessionDuration = now - session.startTime;
-            const keyDuration = now - session.keyCreatedAt;
-            if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
+            if (sessionDuration > SETTINGS.SESSION_EXPIRY || timeDiff > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
             }
 
-            // == KEY & TIMING HANDSHAKE == \\
+            // == KEY HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
             }
 
-            const timeSinceLastRequest = now - session.lastTime;
-            if (timeSinceLastRequest < session.requiredWait) {
-                blacklist[ip] = true;
-                delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation.");
-                return res.status(403).send("SECURITY : TIMING VIOLATION.");
-            }
             session.used = true;
         }
         
@@ -160,18 +162,18 @@ module.exports = async function(req, res) {
                 nextKey: nextKey, 
                 lastTime: now, 
                 startTime: now, 
-                keyCreatedAt: now, 
-                requiredWait: waitTime, 
+                keyCreatedAt: now, // Link dibuat pada detik ini
+                requiredWait: waitTime, // Bot harus menunggu minimal sekian ms
                 used: false 
             };
 
             const nextUrl = "https://" + host + currentPath + "?" + "1." + newSessionID + "." + nextKey;
-            const luaScript = "-- WHAT ARE YOU DOING, BRO?😝😝\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+            const luaScript = "-- Layer 1\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             
             return res.status(200).send(luaScript);
         }
 
-        // == ROTASI GHOST ID == \\
+        // == ROTASI GHOST ID (LAYER TENGAH) == \\
         if (currentStep < SETTINGS.TOTAL_LAYERS) {
             const nextStepNumber = currentStep + 1;
             const newSessionID = Math.random().toString(36).substring(2, 12); 
@@ -184,8 +186,8 @@ module.exports = async function(req, res) {
                 nextKey: nextKey, 
                 lastTime: now, 
                 startTime: sessions[id].startTime, 
-                keyCreatedAt: now, 
-                requiredWait: waitTime, 
+                keyCreatedAt: now, // Catat waktu pembuatan ID baru
+                requiredWait: waitTime, // Tentukan waktu tunggu untuk akses berikutnya
                 used: false 
             };
             
