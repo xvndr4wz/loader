@@ -6,10 +6,10 @@ const SETTINGS = {
     SECRET_SALT: "NDRAAWZGANTENG",
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 112, // = SESUAI PERMINTAAN ANDA = \\
-    MAX_WAIT: 119, // = SESUAI PERMINTAAN ANDA = \\
-    SESSION_EXPIRY: 10000, // = 10 DETIK = \\
-    PLAIN_TEXT_RESP: "keapa?",
+    MIN_WAIT: 112, // = JEDA MINIMAL (MS) = \\
+    MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
+    SESSION_EXPIRY: 10000, // == SESI EXPIRED DALAM 10 DETIK (MS) == \\
+    PLAIN_TEXT_RESP: "kenapa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("ZiFi Security: Script Verified and Loaded!")
@@ -64,9 +64,19 @@ function sendPlainResponse(res, customMsg = null) {
     return res.status(200).send(responseBody);
 }
 
-// === FUNGSI LAYER (HANDSHAKE) === \\
+// === FUNGSI LAYER (HANDSHAKE DENGAN HWID INJECTION) === \\
 function generateNextLayer(host, currentPath, step, id, nextKey, nextWait) {
-    return `-- Layer ${step}\ntask.wait(${nextWait/1000})\nloadstring(game:HttpGet("https://${host}${currentPath}?step=${step}&id=${id}&key=${nextKey}"))()`;
+    const targetUrl = `https://${host}${currentPath}?step=${step}&id=${id}&key=${nextKey}`;
+    
+    // Menggunakan HttpService untuk mengirimkan HWID melalui Custom Header
+    return `-- Layer ${step}
+task.wait(${nextWait/1000})
+local hs = game:GetService("HttpService")
+local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+local success, result = pcall(function()
+    return hs:GetAsync("${targetUrl}", false, { ["ndraawz-hwid"] = hwid })
+end)
+if success then loadstring(result)() else warn("Security Error") end`;
 }
 
 // === MAIN HANDLER (EXPORT) === \\
@@ -76,7 +86,10 @@ module.exports = async (req, res) => {
     const now = Date.now();
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
-    const hwid = req.headers['roblox-id'] || req.headers['x-roblox-hwid'] || "No HWID Detected"; // Mengambil HWID
+    
+    // == MENANGKAP HWID DARI CUSTOM HEADER == \\
+    const hwid = req.headers['ndraawz-hwid'] || "No HWID Detected"; 
+    
     const { step, id, key } = req.query;
     const currentStep = parseInt(step) || 0;
     const host = req.headers.host;
@@ -94,21 +107,22 @@ module.exports = async (req, res) => {
         if (currentStep > 0) {
             const session = sessions[ip];
             
-            if (!session) {
-                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
-            }
+            // == VERIFIKASI EKSISTENSI SESI == \\
+            if (!session) return res.status(403).send("SECURITY : SESSION NOT FOUND.");
 
-            // CEK KADALUWARSA (10 DETIK)
+            // == VERIFIKASI KADALUWARSA SESI (ANTI-FETCH LAMA) == \\
             if (now - session.startTime > SETTINGS.SESSION_EXPIRY) {
                 delete sessions[ip];
                 return res.status(403).send("SECURITY : SESSION EXPIRED.");
             }
             
+            // == VERIFIKASI INTEGRITAS KEY / KUNCI == \\
             if (session.id !== id || session.nextKey !== key) {
                 delete sessions[ip];
                 return res.status(200).send("SECURITY : HANDSHAKE ERROR.");
             }
 
+            // == VERIFIKASI KECEPATAN (ANTI BOT / SPEED BYPASS) == \\
             const timeDiff = now - session.lastTime;
             if (timeDiff < session.requiredWait) {
                 blacklist[ip] = true;
@@ -118,12 +132,13 @@ module.exports = async (req, res) => {
             }
         }
 
-        // == EKSEKUSI STEP == \\
+        // == EKSEKUSI STEP 0 (AWAL) == \\
         if (currentStep === 0) {
             const sessionID = Math.random().toString(36).substring(2, 12);
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
+            // Inisialisasi Sesi Baru
             sessions[ip] = { 
                 id: sessionID, 
                 nextKey: nextKey, 
@@ -136,10 +151,12 @@ module.exports = async (req, res) => {
             return res.status(200).send(script);
         }
 
+        // == PROSES LAYER TENGAH == \\
         if (currentStep < SETTINGS.TOTAL_LAYERS) {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
+            // Update Sesi untuk Step Berikutnya
             sessions[ip].nextKey = nextKey;
             sessions[ip].lastTime = now;
             sessions[ip].requiredWait = waitTime;
@@ -148,10 +165,13 @@ module.exports = async (req, res) => {
             return res.status(200).send(script);
         }
 
-        // == FINAL == \\
+        // == FINAL (PENGIRIMAN SCRIPT ASLI) == \\
         if (currentStep === SETTINGS.TOTAL_LAYERS) {
             await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`, hwid);
+            
+            // Hapus sesi agar tidak bisa di-fetch ulang
             delete sessions[ip];
+            
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
 
