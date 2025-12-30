@@ -6,10 +6,10 @@ const SETTINGS = {
     SECRET_SALT: "NDRAAWZGANTENG",
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 112, // = JEDA MINIMAL (MS) = \\
-    MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
-    SESSION_EXPIRY: 10000, // == SESI EXPIRED DALAM 10 DETIK (MS) == \\
-    PLAIN_TEXT_RESP: "kenapa?",
+    MIN_WAIT: 112, // = SESUAI PERMINTAAN ANDA = \\
+    MAX_WAIT: 119, // = SESUAI PERMINTAAN ANDA = \\
+    SESSION_EXPIRY: 10000, // = 10 DETIK = \\
+    PLAIN_TEXT_RESP: "keapa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("ZiFi Security: Script Verified and Loaded!")
@@ -24,14 +24,23 @@ const SETTINGS = {
 let sessions = {};
 let blacklist = {}; 
 
+// === FUNGSI WAKTU WIB (INDONESIA) === \\
+function getWIBTime() {
+    return new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        dateStyle: 'medium',
+        timeStyle: 'medium'
+    }).format(new Date());
+}
+
 // === FUNGSI WEBHOOK EMBED === \\
-async function sendWebhookLog(msg) {
+async function sendWebhookLog(msg, hwid = "Not Detected") {
     const data = JSON.stringify({ 
         embeds: [{
             title: "❗️Ndraawz Security❗️",
-            description: msg,
+            description: msg + `\n**HWID:** \`${hwid}\``,
             color: 0xff0000,
-            footer: { text: "Ndraawz | " + new Date().toLocaleString() }
+            footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
         }]
     });
 
@@ -67,6 +76,7 @@ module.exports = async (req, res) => {
     const now = Date.now();
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
+    const hwid = req.headers['roblox-id'] || req.headers['x-roblox-hwid'] || "No HWID Detected"; // Mengambil HWID
     const { step, id, key } = req.query;
     const currentStep = parseInt(step) || 0;
     const host = req.headers.host;
@@ -84,28 +94,26 @@ module.exports = async (req, res) => {
         if (currentStep > 0) {
             const session = sessions[ip];
             
-            // == VERIFIKASI EKSISTENSI SESI & KADALUWARSA == \\
             if (!session) {
                 return res.status(403).send("SECURITY : SESSION NOT FOUND.");
             }
 
+            // CEK KADALUWARSA (10 DETIK)
             if (now - session.startTime > SETTINGS.SESSION_EXPIRY) {
-                delete sessions[ip]; // Hapus sesi jika terlalu lama
+                delete sessions[ip];
                 return res.status(403).send("SECURITY : SESSION EXPIRED.");
             }
             
-            // == VERIFIKASI INTEGRITAS KEY / KUNCI == \\
             if (session.id !== id || session.nextKey !== key) {
-                delete sessions[ip]; // Hapus sesi jika kunci salah (anti-bruteforce)
-                return res.status(200).send("SECURITY : INVALID HANDSHAKE.");
+                delete sessions[ip];
+                return res.status(200).send("SECURITY : HANDSHAKE ERROR.");
             }
 
-            // == VERIFIKASI KECEPATAN (ANTI BOT) == \\
             const timeDiff = now - session.lastTime;
             if (timeDiff < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[ip];
-                await sendWebhookLog(`🚫 **DETECT BOT**\n**IP:** \`${ip}\` melompati layer terlalu cepat.`);
+                await sendWebhookLog(`🚫 **DETECT BOT / SPEED BYPASS**\n**IP:** \`${ip}\` melompati layer terlalu cepat.`, hwid);
                 return res.status(403).send("SECURITY : TIMING VIOLATION!");
             }
         }
@@ -116,7 +124,6 @@ module.exports = async (req, res) => {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            // Tambahkan startTime untuk expiry
             sessions[ip] = { 
                 id: sessionID, 
                 nextKey: nextKey, 
@@ -129,12 +136,10 @@ module.exports = async (req, res) => {
             return res.status(200).send(script);
         }
 
-        // == PROSES LAYER TENGAH == \\
         if (currentStep < SETTINGS.TOTAL_LAYERS) {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            // Update session dengan key baru
             sessions[ip].nextKey = nextKey;
             sessions[ip].lastTime = now;
             sessions[ip].requiredWait = waitTime;
@@ -145,11 +150,8 @@ module.exports = async (req, res) => {
 
         // == FINAL == \\
         if (currentStep === SETTINGS.TOTAL_LAYERS) {
-            await sendWebhookLog(`✅ **SUCCESS**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`);
-            
-            // PENTING: Hapus sesi agar script tidak bisa di-fetch ulang dengan link yang sama
+            await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`, hwid);
             delete sessions[ip];
-            
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
 
