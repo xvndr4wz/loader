@@ -10,10 +10,10 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED DALAM 10 DETIK (MS) == \\
     KEY_LIFETIME: 5000, // == KEY/ID EXPIRY: MATI DALAM 5 DETIK (MS) == \\
-    PLAIN_TEXT_RESP: "kenapa?",
+    PLAIN_TEXT_RESP: "ACCES!?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("ZiFi Security: Webhook Fixed & Komen Asli Active!")
+        print("Ndraawz Security: Full Logic + OTP + IP-Lock Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -112,9 +112,16 @@ module.exports = async (req, res) => {
         if (currentStep > 0) {
             const session = sessions[id]; 
             
-            // == VERIFIKASI SESI == \\
+            // == PROTEKSI No. 6: IP LOCK == \\
             if (!session || session.ownerIP !== ip) {
                 return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+            }
+
+            // == PROTEKSI No. 4: ONE-TIME USE (OTP) == \\
+            if (session.used) {
+                blacklist[ip] = true;
+                await sendWebhookLog(`🚫 **REPLAY ATTACK**\n**IP:** \`${ip}\` mencoba akses layer ${currentStep} berulang kali.`);
+                return res.status(403).send("SECURITY : LINK EXPIRED.");
             }
 
             // == VERIFIKASI KADALUWARSA SESI (10 DETIK) == \\
@@ -143,6 +150,9 @@ module.exports = async (req, res) => {
                 await sendWebhookLog(`🚫 **DETECT BOT**\n**IP:** \`${ip}\` melompati layer.`);
                 return res.status(403).send("SECURITY : TIMING VIOLATION!");
             }
+
+            // Tandai sudah dipakai (One-Time Use)
+            session.used = true;
         }
 
         // == STEP 0: INISIALISASI == \\
@@ -157,7 +167,8 @@ module.exports = async (req, res) => {
                 lastTime: now, 
                 startTime: now,
                 keyCreatedAt: now, 
-                requiredWait: waitTime 
+                requiredWait: waitTime,
+                used: false
             };
 
             const script = generateNextLayer(host, currentPath, 1, sessionID, nextKey, waitTime);
@@ -177,7 +188,8 @@ module.exports = async (req, res) => {
                 nextKey: nextKey,
                 lastTime: now,
                 keyCreatedAt: now,
-                requiredWait: waitTime
+                requiredWait: waitTime,
+                used: false // Reset OTP untuk layer berikutnya
             };
 
             delete sessions[oldID]; // == HAPUS ID LAMA (GHOST ID) == \\
