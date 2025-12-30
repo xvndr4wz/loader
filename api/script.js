@@ -5,14 +5,14 @@ const https = require('https');
 // ============================
 const SETTINGS = {
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
-    TOTAL_LAYERS: 5,
-    MIN_WAIT: 112,
-    MAX_WAIT: 119,
-    SESSION_EXPIRY: 10000,
-    KEY_LIFETIME: 5000,
-    PLAIN_TEXT_RESP: "kenapa?",
-    // SCRIPT ASLI TETAP DI SINI
+    TOTAL_LAYERS: 3,
+    MIN_WAIT: 112, 
+    MAX_WAIT: 119, 
+    SESSION_EXPIRY: 3000, // 20 Detik agar lebih stabil
+    KEY_LIFETIME: 3000,   // 10 Detik
+    PLAIN_TEXT_RESP: "HAYUKK?",
     REAL_SCRIPT: `
+        -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
@@ -21,11 +21,14 @@ const SETTINGS = {
     `
 };
 
+// ==========================================
+// MEMORY STORAGE
+// ==========================================
 let sessions = {}; 
 let blacklist = {}; 
 
 // ==========================================
-//  FUNGSI PEMBANTU (WIB & XOR)
+//  HELPER FUNCTIONS
 // ==========================================
 function getWIBTime() {
     return new Intl.DateTimeFormat('id-ID', {
@@ -35,7 +38,7 @@ function getWIBTime() {
     }).format(new Date());
 }
 
-// Fungsi Enkripsi agar real script tidak terdeteksi HttpGet dumper
+// FUNGSI ENKRIPSI XOR - Mengubah string ke Array Byte
 function xorEncrypt(text, key) {
     let encrypted = [];
     for (let i = 0; i < text.length; i++) {
@@ -53,16 +56,24 @@ async function sendWebhookLog(message) {
             footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
         }]
     });
+
     const url = new URL(SETTINGS.WEBHOOK);
     const options = {
         hostname: url.hostname,
         path: url.pathname,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(data)
+        }
     };
-    return new Promise((resolve) => {
-        const req = https.request(options, (res) => { res.on('end', () => resolve(true)); });
-        req.on('error', () => resolve(false));
+
+    return new Promise(function(resolve) {
+        const req = https.request(options, function(res) {
+            res.on('data', function(chunk) {});
+            res.on('end', function() { resolve(true); });
+        });
+        req.on('error', function() { resolve(false); });
         req.write(data);
         req.end();
     });
@@ -80,9 +91,15 @@ module.exports = async function(req, res) {
     
     // == GATEKEEPER == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
-    if (!isRoblox) return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
-    if (blacklist[ip] === true) return res.status(403).send("SECURITY : BANNED ACCESS!");
+    if (!isRoblox) {
+        return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
+    }
 
+    if (blacklist[ip] === true) {
+        return res.status(403).send("SECURITY : BANNED ACCESS!");
+    }
+
+    // == PARSING URL (STEP, ID, KEY) == \\
     const urlParts = req.url.split('?');
     const queryString = urlParts[1] || "";
     const params = queryString.split('.');
@@ -99,8 +116,14 @@ module.exports = async function(req, res) {
         // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
-            if (session === undefined) return res.status(403).send("SECURITY : SESSION NOT FOUND.");
-            if (session.ownerIP !== ip) return res.status(403).send("SECURITY : IP MISMATCH.");
+
+            if (session === undefined) {
+                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+            }
+
+            if (session.ownerIP !== ip) {
+                return res.status(403).send("SECURITY : IP MISMATCH.");
+            }
 
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
@@ -110,11 +133,13 @@ module.exports = async function(req, res) {
 
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog(`🚫 **REPLAY ATTACK**\n**IP:** \`${ip}\``);
+                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`");
                 return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
             }
 
-            if ((now - session.startTime > SETTINGS.SESSION_EXPIRY) || (now - session.keyCreatedAt > SETTINGS.KEY_LIFETIME)) {
+            const sessionDuration = now - session.startTime;
+            const keyDuration = now - session.keyCreatedAt;
+            if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
             }
@@ -124,10 +149,11 @@ module.exports = async function(req, res) {
                 return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
             }
 
-            if ((now - session.lastTime) < session.requiredWait) {
+            const timeSinceLastRequest = now - session.lastTime;
+            if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog(`🚫 **DETECT BOT**\n**IP:** \`${ip}\` timing violation.`);
+                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation.");
                 return res.status(403).send("SECURITY : TIMING VIOLATION.");
             }
             session.used = true;
@@ -135,8 +161,10 @@ module.exports = async function(req, res) {
         
         // == INITIALIZE (STEP 0) == \\
         if (currentStep === 0) {
-            const seed = parseInt(ip.split('.').pop() || "0") + Math.floor(Math.random() * 10000);
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
+
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
@@ -159,17 +187,21 @@ module.exports = async function(req, res) {
             };
 
             const firstStep = sequence[0];
-            const nextUrl = `https://${host}${currentPath}?${firstStep}.${newSessionID}.${nextKey}`;
-            return res.status(200).send(`-- RAWR\ntask.wait(${waitTime / 1000})\nloadstring(game:HttpGet("${nextUrl}"))()`);
+            const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
+            const luaScript = "-- RAWR\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+            
+            return res.status(200).send(luaScript);
         }
 
-        // == ROTASI GHOST ID (LAYER BERLAPIS) == \\
+        // == ROTASI GHOST ID (LAYER 1-4) == \\
         if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
             const session = sessions[id];
             session.currentIndex++; 
             
-            const seed = parseInt(ip.split('.').pop() || "0") + Math.floor(Math.random() * 10000);
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
+
             const nextStepNumber = session.stepSequence[session.currentIndex];
             const nextKey = Math.random().toString(36).substring(2, 8); 
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
@@ -187,52 +219,84 @@ module.exports = async function(req, res) {
             };
             
             delete sessions[id]; 
-            const nextUrl = `https://${host}${currentPath}?${nextStepNumber}.${newSessionID}.${nextKey}`;
-            return res.status(200).send(`-- RAWR ${session.currentIndex + 1}\ntask.wait(${waitTime / 1000})\nloadstring(game:HttpGet("${nextUrl}"))()`);
+
+            const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
+            const luaScript = "-- RAWR " + (session.currentIndex + 1) + "\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+
+            return res.status(200).send(luaScript);
         }
 
-        // == FINAL KIRIM SCRIPT (DITAMBAH ANTI-HOOK & XOR) == \\
+        // == FINAL: ENCRYPTED DELIVERY & ANTI-HOOK == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog(`✅ **SUCCESS**\n**IP:** \`${ip}\` tembus ${SETTINGS.TOTAL_LAYERS} layer.`);
-            
-            // Generate kunci XOR acak untuk sesi ini
-            const xorKey = Math.random().toString(36).substring(2, 10);
-            const encryptedData = xorEncrypt(SETTINGS.REAL_SCRIPT.trim(), xorKey);
+            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
 
-            // Wrapper Luas untuk mengecoh dumper
-            const securedWrapper = `
-                local _d = ${encryptedData}
-                local _k = "${xorKey}"
-                
-                -- ANTI-HOOK AGGRESSIVE
-                local function _check()
-                    local ls = tostring(loadstring)
-                    local hg = tostring(game.HttpGet)
-                    if ls ~= "function: builtin#loadstring" or not ls:find("builtin") then return false end
-                    if debug.getinfo(loadstring).what ~= "C" then return false end
-                    return true
-                end
+            // Generate kunci XOR acak
+            const xorKey = "Ndraawz_" + Math.random().toString(36).substring(2, 8);
+            const encryptedPayload = xorEncrypt(SETTINGS.REAL_SCRIPT.trim(), xorKey);
 
-                if not _check() then
-                    game.Players.LocalPlayer:Kick("Ndraawz Security: Dumper/Hook Detected!")
-                    return
-                end
+            // LOGIKA PANJANG DAN EKSPLISIT UNTUK DEKRIPSI
+            const finalWrapper = `
+--[[ 
+    Ndraawz Security v2.0
+    Encrypted Payload Delivery 
+]]
+local _encrypted = ${encryptedPayload}
+local _xorKey = "${xorKey}"
 
-                -- DEKRIPSI RUNTIME
-                local _s = ""
-                for i = 1, #_d do
-                    _s = _s .. string.char(bit32.bxor(_d[i], string.byte(_k, (i-1) % #_k + 1)))
-                end
+-- FUNGSI ANTI-HOOK (CEK KEASLIAN ENVIRONMENT)
+local function _verifyIntegrity()
+    local ls = tostring(loadstring)
+    local hg = tostring(game.HttpGet)
+    -- Memastikan loadstring bukan buatan Lua (mencegah dumper)
+    if not ls:find("builtin") or debug.getinfo(loadstring).what ~= "C" then
+        return false
+    end
+    -- Memastikan HttpGet tidak di-hook
+    if not hg:find("HttpGet") then
+        return false
+    end
+    return true
+end
 
-                -- EKSEKUSI & CLEANUP
-                local _f = (getrenv().loadstring or loadstring)(_s)
-                _s = nil
-                _d = nil
-                _f()
+-- JALANKAN VERIFIKASI
+if not _verifyIntegrity() then
+    game.Players.LocalPlayer:Kick("Security Detection: Third-party Dumper / Hooking detected.")
+    return
+end
+
+-- FUNGSI DEKRIPSI MANUAL
+local function _decryptData(data, key)
+    local output = ""
+    local keyLen = #key
+    for i = 1, #data do
+        local keyChar = string.byte(key, (i - 1) % keyLen + 1)
+        -- Melakukan XOR matematis
+        local decryptedByte = bit32.bxor(data[i], keyChar)
+        output = output .. string.char(decryptedByte)
+    end
+    return output
+end
+
+-- EKSEKUSI FINAL
+local _rawScript = _decryptData(_encrypted, _xorKey)
+local _loader = (getrenv and getrenv().loadstring) or loadstring
+
+local success, result = pcall(function()
+    _loader(_rawScript)()
+end)
+
+-- PEMBERSIHAN JEJAK MEMORI
+_rawScript = nil
+_encrypted = nil
+_xorKey = nil
+
+if not success then
+    warn("Security Execution Error: " .. tostring(result))
+end
             `.trim();
 
             delete sessions[id];
-            return res.status(200).send(securedWrapper);
+            return res.status(200).send(finalWrapper);
         }
 
     } catch (err) {
