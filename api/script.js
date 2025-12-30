@@ -10,11 +10,11 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "kenaa?",
-    AUTH_HEADER: "ndraawz-security-token", // == NAMA HEADER RAHASIA == \\
+    PLAIN_TEXT_RESP: "kenapa?",
+    AUTH_HEADER: "x-roblox-cache-id", // == NAMA HEADER RAHASIA (GANTI BEBAS) == \\
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("Ndraawz Security: Header Proxy Full Stealth Active!")
+        print("Ndraawz Security: Full Stealth Header Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -48,27 +48,11 @@ async function sendWebhookLog(message) {
             footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
         }]
     });
-
     const url = new URL(SETTINGS.WEBHOOK);
-    const options = {
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(data)
-        }
-    };
-
-    return new Promise(function(resolve) {
-        const req = https.request(options, function(res) {
-            res.on('data', function(chunk) {});
-            res.on('end', function() { resolve(true); });
-        });
-        req.on('error', function() { resolve(false); });
-        req.write(data);
-        req.end();
-    });
+    const options = { hostname: url.hostname, path: url.pathname, method: 'POST', headers: { 'Content-Type': 'application/json' } };
+    const req = https.request(options);
+    req.write(data);
+    req.end();
 }
 
 // ==========================================
@@ -91,7 +75,7 @@ module.exports = async function(req, res) {
         return res.status(403).send("SECURITY : BANNED ACCESS!");
     }
 
-    // == AMBIL DATA DARI PROXY HEADER (ANTISPY) == \\
+    // == AMBIL DATA DARI HEADER (BUKAN URL) == \\
     const authData = req.headers[SETTINGS.AUTH_HEADER] || "";
     const params = authData.split('.');
     
@@ -101,7 +85,7 @@ module.exports = async function(req, res) {
     
     const currentStep = parseInt(step) || 0;
     const host = req.headers.host;
-    const currentPath = req.url.split('?')[0]; // URL tetap bersih
+    const currentPath = req.url.split('?')[0];
 
     try {
         // == HANDSHAKE VALIDATION == \\
@@ -116,7 +100,7 @@ module.exports = async function(req, res) {
                 return res.status(403).send("SECURITY : IP MISMATCH.");
             }
 
-            // == VALIDASI KEY & STEALTH FINGERPRINT == \\
+            // Validasi Key & Stealth Fingerprint "24"
             if (!key || !key.endsWith("24") || key.slice(0, -2) !== session.nextKey) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
@@ -144,69 +128,94 @@ module.exports = async function(req, res) {
             if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (Header Proxy Mode).");
+                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (Hidden Header).");
                 return res.status(403).send("SECURITY : TIMING VIOLATION.");
             }
             session.used = true;
         }
         
-        // == INISIALISASI / ROTASI == \\
-        if (currentStep === 0 || (sessions[id] && sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1)) {
-            let session;
-            let idToUse;
+        // == INISIALISASI SESI PERTAMA == \\
+        if (currentStep === 0) {
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
+            const newID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
 
-            if (currentStep === 0) {
-                // == ID 4 KARAKTER BERBASIS IP == \\
-                const ipPart = ip.split('.').pop() || "0";
-                const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
-                const newID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
-
-                let sequence = [];
-                while(sequence.length < SETTINGS.TOTAL_LAYERS) {
-                    let r = Math.floor(Math.random() * 300) + 1;
-                    if(!sequence.includes(r)) sequence.push(r);
-                }
-
-                session = { 
-                    ownerIP: ip, 
-                    stepSequence: sequence,
-                    currentIndex: 0,
-                    startTime: now,
-                    used: false 
-                };
-                sessions[newID] = session;
-                idToUse = newID;
-            } else {
-                session = sessions[id];
-                session.currentIndex++;
-                idToUse = id;
+            let sequence = [];
+            while(sequence.length < SETTINGS.TOTAL_LAYERS) {
+                let r = Math.floor(Math.random() * 300) + 1;
+                if(!sequence.includes(r)) sequence.push(r);
             }
 
-            session.nextKey = Math.random().toString(36).substring(2, 7);
-            session.lastTime = now;
-            session.requiredWait = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
+            sessions[newID] = { 
+                ownerIP: ip, 
+                stepSequence: sequence,
+                currentIndex: 0,
+                nextKey: Math.random().toString(36).substring(2, 7),
+                lastTime: now, 
+                startTime: now, 
+                requiredWait: Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT,
+                used: false 
+            };
 
-            const nextStepNum = session.stepSequence[session.currentIndex];
-            const nextToken = `${nextStepNum}.${idToUse}.${session.nextKey}24`;
+            const firstStep = sequence[0];
+            const nextToken = firstStep + "." + newID + "." + sessions[newID].nextKey + "24";
 
-            // == LUA SCRIPT: URL BERSIH TOTAL DI HTTPSPY == \\
             const luaScript = `
--- Layer ${session.currentIndex + 1}
-task.wait(${session.requiredWait / 1000})
+-- Layer 1
+task.wait(${sessions[newID].requiredWait / 1000})
 local success, response = pcall(function()
     return game:HttpGetAsync("https://${host}${currentPath}", {
         ["${SETTINGS.AUTH_HEADER}"] = "${nextToken}"
     })
 end)
-if success then loadstring(response)() end
-            `.trim();
+if success then loadstring(response)() end`.trim();
             
+            return res.status(200).send(luaScript);
+        }
+
+        // == ROTASI GHOST ID & LAYER == \\
+        if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
+            const session = sessions[id];
+            session.currentIndex++; 
+            
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
+            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
+
+            const nextStepNumber = session.stepSequence[session.currentIndex];
+            const nextKey = Math.random().toString(36).substring(2, 7); 
+            const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
+
+            sessions[newSessionID] = { 
+                ownerIP: session.ownerIP,
+                stepSequence: session.stepSequence,
+                currentIndex: session.currentIndex,
+                nextKey: nextKey, 
+                lastTime: now, 
+                startTime: session.startTime, 
+                requiredWait: waitTime, 
+                used: false 
+            };
+            
+            delete sessions[id]; 
+
+            const nextToken = nextStepNumber + "." + newSessionID + "." + nextKey + "24";
+            const luaScript = `
+-- Layer ${session.currentIndex + 1}
+task.wait(${waitTime / 1000})
+local success, response = pcall(function()
+    return game:HttpGetAsync("https://${host}${currentPath}", {
+        ["${SETTINGS.AUTH_HEADER}"] = "${nextToken}"
+    })
+end)
+if success then loadstring(response)() end`.trim();
+
             return res.status(200).send(luaScript);
         }
 
         // == FINAL KIRIM SCRIPT == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` passed all layers (Header Proxy).");
+            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` via Full Stealth Header.");
             delete sessions[id];
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
