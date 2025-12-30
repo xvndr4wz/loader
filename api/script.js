@@ -10,7 +10,7 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "napa bg",
+    PLAIN_TEXT_RESP: "kenapa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
@@ -70,15 +70,6 @@ async function sendWebhookLog(message) {
     });
 }
 
-// FUNGSI GENERATE ID 4 KARAKTER BERDASARKAN IP
-function generateIpBasedId(ip) {
-    // Ambil angka terakhir dari IP (misal 192.168.1.15 -> ambil 15)
-    const ipPart = ip.split('.').pop() || "0";
-    // Gabungkan dengan angka acak lalu ubah ke Base36 (huruf & angka)
-    const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
-    return seed.toString(36).substring(0, 4).padEnd(4, 'x');
-}
-
 // ==========================================
 // MAIN HANDLER
 // ==========================================
@@ -89,6 +80,16 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
+    // == GATEKEEPER : VALIDASI AGENT (PLAIN TEXT WORK) == \\
+    const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
+    if (!isRoblox) {
+        return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
+    }
+
+    if (blacklist[ip] === true) {
+        return res.status(403).send("SECURITY : BANNED ACCESS!");
+    }
+
     // == PARSING URL (STEP, ID, KEY) == \\
     const urlParts = req.url.split('?');
     const queryString = urlParts[1] || "";
@@ -102,46 +103,44 @@ module.exports = async function(req, res) {
     const host = req.headers.host;
     const currentPath = urlParts[0];
 
-    // == GATEKEEPER : VALIDASI AWAL == \\
-    const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
-    if (isRoblox === false) {
-        return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
-    }
-
-    if (blacklist[ip] === true) {
-        return res.status(403).send("SECURITY : BANNED ACCESS!");
-    }
-
     try {
         // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
 
+            // == CHECK APAKAH SESI ADA == \\
             if (session === undefined) {
                 return res.status(403).send("SECURITY : SESSION NOT FOUND.");
             }
 
+            // == IP LOCK CHECK == \\
             if (session.ownerIP !== ip) {
-                return res.status(403).send("SECURITY : IP MISMATCH / INVALID SESSION.");
+                return res.status(403).send("SECURITY : IP MISMATCH.");
             }
 
+            // == VALIDASI URUTAN STEP RANDOM (1-300) == \\
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : INVALID SEQUENCE.");
             }
 
+            //  == ONE-TIME USE == \\
             if (session.used === true) {
                 blacklist[ip] = true;
                 await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
                 return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
             }
 
-            if (now - session.startTime > SETTINGS.SESSION_EXPIRY || now - session.keyCreatedAt > SETTINGS.KEY_LIFETIME) {
+            // == EXPIRY CHECK == \\
+            const sessionDuration = now - session.startTime;
+            const keyDuration = now - session.keyCreatedAt;
+            if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
             }
 
+            // == KEY & TIMING HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
@@ -159,10 +158,15 @@ module.exports = async function(req, res) {
         
         // == INISIALISASI SESI PERTAMA == \\
         if (currentStep === 0) {
-            const newSessionID = generateIpBasedId(ip); // ID 4 Karakter berbasis IP
+            // == GENERATE ID 4 KARAKTER BERBASIS IP + RANDOM == \\
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
+            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
+
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
+            // == GENERATE 5 STEP RANDOM UNIK (1-300) == \\
             let sequence = [];
             while(sequence.length < SETTINGS.TOTAL_LAYERS) {
                 let r = Math.floor(Math.random() * 300) + 1;
@@ -193,8 +197,12 @@ module.exports = async function(req, res) {
             const session = sessions[id];
             session.currentIndex++; 
             
+            // == GENERATE ID BARU 4 KARAKTER == \\
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
+            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
+
             const nextStepNumber = session.stepSequence[session.currentIndex];
-            const newSessionID = generateIpBasedId(ip); // ID Baru tetap 4 Karakter berbasis IP
             const nextKey = Math.random().toString(36).substring(2, 8); 
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
