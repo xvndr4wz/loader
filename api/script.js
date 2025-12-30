@@ -10,7 +10,7 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "🤭",
+    PLAIN_TEXT_RESP: "napa bg",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
