@@ -1,135 +1,183 @@
 const https = require('https');
+const crypto = require('crypto');
 
 // === SETTINGS === \\
 const SETTINGS = {
-    // Kunci rahasia yang disembunyikan di dalam Header (bukan di URL)
-    HEADER_KEY: "ndraawz_secret_v1", 
+    SECRET_SALT: "NDRAAWZGANTENG",
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 112, // Jeda minimal antar layer (ms)
-    MAX_WAIT: 119, // Jeda maksimal antar layer (ms)
-    SESSION_EXPIRY: 10000, // Sesi hangus dalam 10 detik
-    PLAIN_TEXT_RESP: "pa?",
-    REAL_SCRIPT: `print("Ndraawz Security: Header Injection Verified!")`
+    MIN_WAIT: 112, // = JEDA MINIMAL (MS) = \\
+    MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
+    SESSION_EXPIRY: 10000, // == SESI EXPIRED DALAM 10 DETIK (MS) == \\
+    LINK_LIFETIME: 5000, // == TIME-KEY: LINK MATI DALAM 5 DETIK (MS) == \\
+    PLAIN_TEXT_RESP: "kenapa?",
+    REAL_SCRIPT: `
+        -- SCRIPT ASLI ANDA
+        print("ZiFi Security: All Protections Active!")
+        local p = game.Players.LocalPlayer
+        if p.Character and p.Character:FindFirstChild("Humanoid") then
+            p.Character.Humanoid.Health -= 50
+        end
+    `
 };
 
-// === MEMORY SYSTEM === \\
+// === MEMORY === \\
 let sessions = {};
+let usedLinks = {}; // == UNTUK SISTEM GHOST LINK == \\
 let blacklist = {}; 
 
-// === FUNGSI WAKTU WIB === \\
+// === FUNGSI WAKTU WIB (INDONESIA) === \\
 function getWIBTime() {
-    return new Intl.DateTimeFormat('id-ID', { 
-        timeZone: 'Asia/Jakarta', 
-        dateStyle: 'medium', 
-        timeStyle: 'medium' 
+    return new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        dateStyle: 'medium',
+        timeStyle: 'medium'
     }).format(new Date());
 }
 
-// === FUNGSI LOGGING DISCORD === \\
+// === FUNGSI WEBHOOK EMBED === \\
 async function sendWebhookLog(msg) {
     const data = JSON.stringify({ 
         embeds: [{
             title: "❗️Ndraawz Security❗️",
             description: msg,
-            color: 0x00ff00, // Warna hijau untuk sukses
-            footer: { text: "WIB: " + getWIBTime() }
+            color: 0xff0000,
+            footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
         }]
     });
+
     const url = new URL(SETTINGS.WEBHOOK);
-    const req = https.request({ 
-        hostname: url.hostname, 
-        path: url.pathname, 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' } 
+    return new Promise((resolve) => {
+        const req = https.request({
+            hostname: url.hostname,
+            path: url.pathname,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }, (res) => resolve(true));
+        req.on('error', () => resolve(false));
+        req.write(data);
+        req.end();
     });
-    req.write(data);
-    req.end();
 }
 
-// === FUNGSI GENERATE LAYER (INJECT KE HEADER) === \\
+// === FUNGSI PLAIN TEXT / RAW === \\
+function sendPlainResponse(res, customMsg = null) {
+    const responseBody = customMsg || SETTINGS.PLAIN_TEXT_RESP;
+    return res.status(200).send(responseBody);
+}
+
+// === FUNGSI LAYER (HANDSHAKE) === \\
 function generateNextLayer(host, currentPath, step, id, nextKey, nextWait) {
-    const targetUrl = `https://${host}${currentPath}?step=${step}&id=${id}&key=${nextKey}`;
-    
-    // Di sini keajaibannya: Kunci dikirim lewat tabel header { ["X-Roblox-Edge-Token"] = ... }
-    return `-- Layer ${step}
-task.wait(${nextWait/1000})
-local hs = game:GetService("HttpService")
-local success, result = pcall(function()
-    return hs:GetAsync("${targetUrl}", false, {
-        ["X-Roblox-Edge-Token"] = "${SETTINGS.HEADER_KEY}",
-        ["User-Agent"] = "Roblox/WinInet" -- Menyamar sebagai traffic asli Roblox
-    })
-end)
-if success then loadstring(result)() else warn("Security Error: Connection Denied") end`;
+    const timestamp = Date.now(); // == TIME-KEY GENERATOR == \\
+    return `-- Layer ${step}\ntask.wait(${nextWait/1000})\nloadstring(game:HttpGet("https://${host}${currentPath}?step=${step}&id=${id}&key=${nextKey}&t=${timestamp}"))()`;
 }
 
-// === MAIN HANDLER === \\
+// === MAIN HANDLER (EXPORT) === \\
 module.exports = async (req, res) => {
     res.setHeader('Content-Type', 'text/plain');
+    
     const now = Date.now();
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
-    
-    // == TANGKAP KUNCI DARI HEADER == \\
-    const incomingToken = req.headers['x-roblox-edge-token'];
-    const { step, id, key } = req.query;
+    const agent = req.headers['user-agent'] || "";
+    const { step, id, key, t } = req.query; // == T ADALAH TIME-KEY == \\
     const currentStep = parseInt(step) || 0;
+    const host = req.headers.host;
+    const currentPath = req.url.split('?')[0];
 
-    // == PROTEKSI 1: CEK APAKAH KUNCI HEADER ADA == \\
-    // (Jika orang buka link via browser/fetch manual, bagian ini akan menolak mereka)
-    if (currentStep > 0 && incomingToken !== SETTINGS.HEADER_KEY) {
-        blacklist[ip] = true;
-        await sendWebhookLog(`🚨 **MISSING HEADER TOKEN**\n**IP:** \`${ip}\` mencoba akses langsung via URL.`);
-        return res.status(403).send("SECURITY : ACCESS DENIED.");
-    }
+    // == VALIDASI USER AGENT (ROBLOX ONLY) == \\
+    const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
+    if (!isRoblox) return sendPlainResponse(res);
 
-    // == PROTEKSI 2: CEK BLACKLIST == \\
-    if (blacklist[ip]) return res.status(403).send("SECURITY : BANNED.");
+    // == CEK BLACKLIST == \\
+    if (blacklist[ip]) return res.status(403).send("SECURITY : BANNED ACCESS!");
 
     try {
-        // == PROTEKSI 3: VALIDASI SESI & TIMING == \\
+        // == SESI & TIMING == \\
         if (currentStep > 0) {
             const session = sessions[ip];
-            if (!session || now - session.startTime > SETTINGS.SESSION_EXPIRY || session.id !== id || session.nextKey !== key) {
-                return res.status(403).send("SECURITY : SESSION INVALID.");
+
+            // == VERIFIKASI GHOST LINK (ANTI RE-FETCH) == \\
+            const linkID = `${id}_${step}_${key}_${t}`;
+            if (usedLinks[linkID]) {
+                await sendWebhookLog(`🚨 **GHOST LINK**\n**IP:** \`${ip}\` mencoba fetch ulang.`);
+                return res.status(403).send("SECURITY : LINK ALREADY USED.");
             }
-            // Anti-Speed (mencegah bypass antar layer)
-            if (now - session.lastTime < session.requiredWait) {
+            
+            // == VERIFIKASI TIME-KEY (LINK EXPIRED DALAM 5 DETIK) == \\
+            if (!t || (now - parseInt(t)) > SETTINGS.LINK_LIFETIME) {
+                return res.status(403).send("SECURITY : LINK EXPIRED.");
+            }
+            
+            // == VERIFIKASI SESI == \\
+            if (!session) return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+
+            // == VERIFIKASI KADALUWARSA SESI (10 DETIK) == \\
+            if (now - session.startTime > SETTINGS.SESSION_EXPIRY) {
+                delete sessions[ip];
+                return res.status(403).send("SECURITY : SESSION EXPIRED.");
+            }
+            
+            // == VERIFIKASI KEY == \\
+            if (session.id !== id || session.nextKey !== key) {
+                delete sessions[ip];
+                return res.status(200).send("SECURITY : HANDSHAKE ERROR.");
+            }
+
+            // == VERIFIKASI KECEPATAN (ANTI BOT) == \\
+            const timeDiff = now - session.lastTime;
+            if (timeDiff < session.requiredWait) {
                 blacklist[ip] = true;
-                return res.status(403).send("SECURITY : TIMING VIOLATION.");
+                delete sessions[ip];
+                await sendWebhookLog(`🚫 **DETECT BOT**\n**IP:** \`${ip}\` melompati layer.`);
+                return res.status(403).send("SECURITY : TIMING VIOLATION!");
             }
+
+            // == TANDAI LINK SEBAGAI TERPAKAI (GHOST LINK) == \\
+            usedLinks[linkID] = true;
         }
 
-        // == STEP 0: MULAI HANDSHAKE == \\
+        // == STEP 0: INISIALISASI == \\
         if (currentStep === 0) {
-            const sID = Math.random().toString(36).substring(2, 12);
-            const nK = Math.random().toString(36).substring(2, 8);
-            const wait = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
-            
-            sessions[ip] = { id: sID, nextKey: nK, lastTime: now, startTime: now, requiredWait: wait };
-            
-            return res.status(200).send(generateNextLayer(req.headers.host, req.url.split('?')[0], 1, sID, nK, wait));
+            const sessionID = Math.random().toString(36).substring(2, 12);
+            const nextKey = Math.random().toString(36).substring(2, 8);
+            const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
+
+            sessions[ip] = { 
+                id: sessionID, 
+                nextKey: nextKey, 
+                lastTime: now, 
+                startTime: now, // == MENCATAT WAKTU MULAI SESI == \\
+                requiredWait: waitTime 
+            };
+
+            const script = generateNextLayer(host, currentPath, 1, sessionID, nextKey, waitTime);
+            return res.status(200).send(script);
         }
 
-        // == PROSES LAYER TENGAH (1 SAMPAI 4) == \\
+        // == LAYER TENGAH == \\
         if (currentStep < SETTINGS.TOTAL_LAYERS) {
-            const nK = Math.random().toString(36).substring(2, 8);
-            const wait = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
-            
-            sessions[ip].nextKey = nK;
+            const nextKey = Math.random().toString(36).substring(2, 8);
+            const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
+
+            sessions[ip].nextKey = nextKey;
             sessions[ip].lastTime = now;
-            
-            return res.status(200).send(generateNextLayer(req.headers.host, req.url.split('?')[0], currentStep + 1, id, nK, wait));
+            sessions[ip].requiredWait = waitTime;
+
+            const script = generateNextLayer(host, currentPath, currentStep + 1, id, nextKey, waitTime);
+            return res.status(200).send(script);
         }
 
-        // == FINAL STEP: KIRIM SCRIPT ASLI == \\
+        // == FINAL == \\
         if (currentStep === SETTINGS.TOTAL_LAYERS) {
-            await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati semua layer.`);
+            await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`);
+            
+            // == HAPUS SESI AGAR TIDAK BISA DI-FETCH ULANG == \\
             delete sessions[ip];
-            return res.status(200).send(SETTINGS.REAL_SCRIPT);
+            
+            return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
-        
-    } catch (e) { 
-        return res.status(500).send("INTERNAL ERROR"); 
+
+    } catch (err) {
+        return res.status(500).send("SECURITY : INTERNAL ERROR!");
     }
 };
