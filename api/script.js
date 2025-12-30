@@ -64,19 +64,18 @@ function sendPlainResponse(res, customMsg = null) {
     return res.status(200).send(responseBody);
 }
 
-// === FUNGSI LAYER (HANDSHAKE DENGAN HWID INJECTION) === \\
+// === FUNGSI LAYER (HANDSHAKE DENGAN URL PARAMETER HWID) === \\
 function generateNextLayer(host, currentPath, step, id, nextKey, nextWait) {
-    const targetUrl = `https://${host}${currentPath}?step=${step}&id=${id}&key=${nextKey}`;
+    // HWID dikirim lewat URL agar tidak kena 'Security Error' dari HttpService
+    const targetUrl = `https://${host}${currentPath}?step=${step}&id=${id}&key=${nextKey}&hwid=`;
     
-    // Menggunakan HttpService untuk mengirimkan HWID melalui Custom Header
     return `-- Layer ${step}
 task.wait(${nextWait/1000})
-local hs = game:GetService("HttpService")
 local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
 local success, result = pcall(function()
-    return hs:GetAsync("${targetUrl}", false, { ["ndraawz-hwid"] = hwid })
+    return game:HttpGet("${targetUrl}" .. hwid)
 end)
-if success then loadstring(result)() else warn("Security Error") end`;
+if success then loadstring(result)() else warn("Ndraawz Security: Connection Error") end`;
 }
 
 // === MAIN HANDLER (EXPORT) === \\
@@ -87,15 +86,15 @@ module.exports = async (req, res) => {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == MENANGKAP HWID DARI CUSTOM HEADER == \\
-    const hwid = req.headers['ndraawz-hwid'] || "No HWID Detected"; 
+    // == MENANGKAP HWID DARI URL PARAMETER == \\
+    const { step, id, key, hwid } = req.query;
+    const currentHWID = hwid || "No HWID Detected";
     
-    const { step, id, key } = req.query;
     const currentStep = parseInt(step) || 0;
     const host = req.headers.host;
     const currentPath = req.url.split('?')[0];
 
-    // == VALIDASI USER AGENT (ROBLOX ONLY == \\
+    // == VALIDASI USER AGENT (ROBLOX ONLY) == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
     if (!isRoblox) return sendPlainResponse(res);
 
@@ -110,7 +109,7 @@ module.exports = async (req, res) => {
             // == VERIFIKASI EKSISTENSI SESI == \\
             if (!session) return res.status(403).send("SECURITY : SESSION NOT FOUND.");
 
-            // == VERIFIKASI KADALUWARSA SESI (ANTI-FETCH LAMA) == \\
+            // == VERIFIKASI KADALUWARSA SESI (10 DETIK) == \\
             if (now - session.startTime > SETTINGS.SESSION_EXPIRY) {
                 delete sessions[ip];
                 return res.status(403).send("SECURITY : SESSION EXPIRED.");
@@ -127,7 +126,7 @@ module.exports = async (req, res) => {
             if (timeDiff < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[ip];
-                await sendWebhookLog(`🚫 **DETECT BOT / SPEED BYPASS**\n**IP:** \`${ip}\` melompati layer terlalu cepat.`, hwid);
+                await sendWebhookLog(`🚫 **DETECT BOT / SPEED BYPASS**\n**IP:** \`${ip}\` melompati layer terlalu cepat.`, currentHWID);
                 return res.status(403).send("SECURITY : TIMING VIOLATION!");
             }
         }
@@ -167,7 +166,7 @@ module.exports = async (req, res) => {
 
         // == FINAL (PENGIRIMAN SCRIPT ASLI) == \\
         if (currentStep === SETTINGS.TOTAL_LAYERS) {
-            await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`, hwid);
+            await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`, currentHWID);
             
             // Hapus sesi agar tidak bisa di-fetch ulang
             delete sessions[ip];
