@@ -6,35 +6,23 @@ const SETTINGS = {
     SECRET_SALT: "NDRAAWZGANTENG",
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 50, // = JEDA MINIMAL (MS) = \\
-    MAX_WAIT: 100, // = JEDA MAXIMAL (MS) = \\
-    PLAIN_TEXT_RESP: "https://ndraawzz-developer.vercel.app/api/script",
-    
-    // [GHOST FETCH SETTINGS]
-    // Masukkan link script asli lu di sini (Contoh: Pastebin Raw / API Lu)
-    // Link ini TIDAK AKAN PERNAH terlihat di HTTP Spy user!
-    HIDDEN_SOURCE_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/WallHop",
-
+    MIN_WAIT: 112, // = JEDA MINIMAL (MS) = \\
+    MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
+    SESSION_EXPIRY: 10000, // == SESI EXPIRED DALAM 10 DETIK (MS) == \\
+    PLAIN_TEXT_RESP: "kenapa?",
     REAL_SCRIPT: `
-        -- SCRIPT ASLI ANDA (CADANGAN)
+        -- SCRIPT ASLI ANDA
         print("ZiFi Security: Script Verified and Loaded!")
+        local p = game.Players.LocalPlayer
+        if p.Character and p.Character:FindFirstChild("Humanoid") then
+            p.Character.Humanoid.Health -= 50
+        end
     `
 };
 
 // === MEMORY === \\
 let sessions = {};
 let blacklist = {}; 
-
-// === FUNGSI INTERNAL FETCH (GHOST ENGINE) === \\
-async function fetchInternalScript(url) {
-    return new Promise((resolve) => {
-        https.get(url, (res) => {
-            let data = '';
-            res.on('data', (chunk) => data += chunk);
-            res.on('end', () => resolve(data));
-        }).on('error', () => resolve(null));
-    });
-}
 
 // === FUNGSI WEBHOOK EMBED === \\
 async function sendWebhookLog(msg) {
@@ -96,15 +84,27 @@ module.exports = async (req, res) => {
         if (currentStep > 0) {
             const session = sessions[ip];
             
+            // == VERIFIKASI EKSISTENSI SESI & KADALUWARSA == \\
+            if (!session) {
+                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+            }
+
+            if (now - session.startTime > SETTINGS.SESSION_EXPIRY) {
+                delete sessions[ip]; // Hapus sesi jika terlalu lama
+                return res.status(403).send("SECURITY : SESSION EXPIRED.");
+            }
+            
             // == VERIFIKASI INTEGRITAS KEY / KUNCI == \\
-            if (!session || session.id !== id || session.nextKey !== key) {
-                return res.status(200).send("SECURITY : HANDSHAKE ERROR.");
+            if (session.id !== id || session.nextKey !== key) {
+                delete sessions[ip]; // Hapus sesi jika kunci salah (anti-bruteforce)
+                return res.status(200).send("SECURITY : INVALID HANDSHAKE.");
             }
 
             // == VERIFIKASI KECEPATAN (ANTI BOT) == \\
             const timeDiff = now - session.lastTime;
             if (timeDiff < session.requiredWait) {
                 blacklist[ip] = true;
+                delete sessions[ip];
                 await sendWebhookLog(`🚫 **DETECT BOT**\n**IP:** \`${ip}\` melompati layer terlalu cepat.`);
                 return res.status(403).send("SECURITY : TIMING VIOLATION!");
             }
@@ -116,7 +116,14 @@ module.exports = async (req, res) => {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            sessions[ip] = { id: sessionID, nextKey: nextKey, lastTime: now, requiredWait: waitTime };
+            // Tambahkan startTime untuk expiry
+            sessions[ip] = { 
+                id: sessionID, 
+                nextKey: nextKey, 
+                lastTime: now, 
+                startTime: now, 
+                requiredWait: waitTime 
+            };
 
             const script = generateNextLayer(host, currentPath, 1, sessionID, nextKey, waitTime);
             return res.status(200).send(script);
@@ -127,6 +134,7 @@ module.exports = async (req, res) => {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
+            // Update session dengan key baru
             sessions[ip].nextKey = nextKey;
             sessions[ip].lastTime = now;
             sessions[ip].requiredWait = waitTime;
@@ -139,15 +147,10 @@ module.exports = async (req, res) => {
         if (currentStep === SETTINGS.TOTAL_LAYERS) {
             await sendWebhookLog(`✅ **SUCCESS**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`);
             
-            // [GHOST FETCH EXECUTION]
-            // Server lu narik script dari URL rahasia lu secara internal
-            let finalContent = await fetchInternalScript(SETTINGS.HIDDEN_SOURCE_URL);
-            
-            // Kalo fetch gagal, pake script fallback di settings
-            if (!finalContent) finalContent = SETTINGS.REAL_SCRIPT;
-
+            // PENTING: Hapus sesi agar script tidak bisa di-fetch ulang dengan link yang sama
             delete sessions[ip];
-            return res.status(200).send(finalContent.trim());
+            
+            return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
 
     } catch (err) {
