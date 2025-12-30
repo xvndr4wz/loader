@@ -13,7 +13,7 @@ const SETTINGS = {
     PLAIN_TEXT_RESP: "kenapa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("ZiFi Security: Secure Hash Pattern Verified!")
+        print("ZiFi Security: Direct Data Pattern Verified!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -62,11 +62,11 @@ function sendPlainResponse(res, customMsg = null) {
     return res.status(200).send(responseBody);
 }
 
-// === FUNGSI LAYER (SECURE HASH PATTERN) === \\
+// === FUNGSI LAYER (DIRECT DATA PATTERN) === \\
 function generateNextLayer(host, currentPath, step, id, nextKey, nextWait) {
-    // URL MENGGUNAKAN SATU PARAMETER: ?_=step.id.key
-    const secureUrl = `https://${host}${currentPath}?_=${step}.${id}.${nextKey}`;
-    return `-- Layer ${step}\ntask.wait(${nextWait/1000})\nloadstring(game:HttpGet("${secureUrl}"))()`;
+    // URL TANPA NAMA PARAMETER: ?step.id.key
+    const directUrl = `https://${host}${currentPath}?${step}.${id}.${nextKey}`;
+    return `-- Layer ${step}\ntask.wait(${nextWait/1000})\nloadstring(game:HttpGet("${directUrl}"))()`;
 }
 
 // === MAIN HANDLER (EXPORT) === \\
@@ -77,9 +77,10 @@ module.exports = async (req, res) => {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == LOGIKA PARSING PARAMETER TUNGGAL == \\
-    const rawData = req.query._ || ""; 
-    const params = rawData.split('.'); // Memecah data berdasarkan titik
+    // == LOGIKA PARSING DATA LANGSUNG SETELAH TANDA TANYA == \\
+    const fullUrl = req.url || "";
+    const rawData = fullUrl.split('?')[1] || ""; 
+    const params = rawData.split('.'); // Memecah berdasarkan titik (.)
     
     const step = params[0]; 
     const id = params[1];   
@@ -87,7 +88,7 @@ module.exports = async (req, res) => {
     
     const currentStep = parseInt(step) || 0;
     const host = req.headers.host;
-    const currentPath = req.url.split('?')[0];
+    const currentPath = fullUrl.split('?')[0];
 
     // == VALIDASI USER AGENT (ROBLOX ONLY) == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
@@ -147,7 +148,7 @@ module.exports = async (req, res) => {
             return res.status(200).send(script);
         }
 
-        // == LAYER TENGAH (MENGACAK ID DAN KEY BARU) == \\
+        // == LAYER TENGAH (GANTI ID & KEY) == \\
         if (currentStep < SETTINGS.TOTAL_LAYERS) {
             const oldID = id;
             const newID = Math.random().toString(36).substring(2, 12); 
