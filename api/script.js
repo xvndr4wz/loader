@@ -1,5 +1,4 @@
 const https = require('https');
-const crypto = require('crypto');
 
 // === SETTINGS === \\
 const SETTINGS = {
@@ -10,10 +9,10 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED DALAM 10 DETIK (MS) == \\
     KEY_LIFETIME: 5000, // == KEY/ID EXPIRY: MATI DALAM 5 DETIK (MS) == \\
-    PLAIN_TEXT_RESP: "kenapa?",
+    PLAIN_TEXT_RESP: "kenpa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("ZiFi Security: Direct Data Pattern Verified!")
+        print("ZiFi Security: Webhook Fixed & Direct Data Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -34,26 +33,42 @@ function getWIBTime() {
     }).format(new Date());
 }
 
-// === FUNGSI WEBHOOK EMBED === \\
+// === FUNGSI WEBHOOK (FIXED FOR VERCEL) === \\
 async function sendWebhookLog(msg) {
-    const data = JSON.stringify({ 
-        embeds: [{
-            title: "❗️Ndraawz Security❗️",
-            description: msg,
-            color: 0xff0000,
-            footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
-        }]
-    });
+    return new Promise((resolve) => {
+        const data = JSON.stringify({ 
+            embeds: [{
+                title: "❗️Ndraawz Security❗️",
+                description: msg,
+                color: 0xff0000,
+                footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
+            }]
+        });
 
-    const url = new URL(SETTINGS.WEBHOOK);
-    const req = https.request({
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        const url = new URL(SETTINGS.WEBHOOK);
+        const options = {
+            hostname: url.hostname,
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(data)
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            res.on('data', () => {});
+            res.on('end', () => resolve(true));
+        });
+
+        req.on('error', (e) => {
+            console.error("Webhook Error:", e);
+            resolve(false);
+        });
+
+        req.write(data);
+        req.end();
     });
-    req.write(data);
-    req.end();
 }
 
 // === FUNGSI PLAIN TEXT / RAW === \\
@@ -64,7 +79,6 @@ function sendPlainResponse(res, customMsg = null) {
 
 // === FUNGSI LAYER (DIRECT DATA PATTERN) === \\
 function generateNextLayer(host, currentPath, step, id, nextKey, nextWait) {
-    // URL TANPA NAMA PARAMETER: ?step.id.key
     const directUrl = `https://${host}${currentPath}?${step}.${id}.${nextKey}`;
     return `-- Layer ${step}\ntask.wait(${nextWait/1000})\nloadstring(game:HttpGet("${directUrl}"))()`;
 }
@@ -77,10 +91,9 @@ module.exports = async (req, res) => {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == LOGIKA PARSING DATA LANGSUNG SETELAH TANDA TANYA == \\
     const fullUrl = req.url || "";
     const rawData = fullUrl.split('?')[1] || ""; 
-    const params = rawData.split('.'); // Memecah berdasarkan titik (.)
+    const params = rawData.split('.'); 
     
     const step = params[0]; 
     const id = params[1];   
@@ -90,14 +103,12 @@ module.exports = async (req, res) => {
     const host = req.headers.host;
     const currentPath = fullUrl.split('?')[0];
 
-    // == VALIDASI USER AGENT (ROBLOX ONLY) == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
     if (!isRoblox) return sendPlainResponse(res);
 
     if (blacklist[ip]) return res.status(403).send("SECURITY : BANNED ACCESS!");
 
     try {
-        // == SESI & TIMING == \\
         if (currentStep > 0) {
             const session = sessions[id]; 
             
@@ -124,54 +135,40 @@ module.exports = async (req, res) => {
             if (timeDiff < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
+                // Menunggu webhook terkirim sebelum respon dikirim
                 await sendWebhookLog(`🚫 **DETECT BOT**\n**IP:** \`${ip}\` melompati layer.`);
                 return res.status(403).send("SECURITY : TIMING VIOLATION!");
             }
         }
 
-        // == STEP 0: INISIALISASI == \\
         if (currentStep === 0) {
             const sessionID = Math.random().toString(36).substring(2, 12);
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
             sessions[sessionID] = { 
-                ownerIP: ip,
-                nextKey: nextKey, 
-                lastTime: now, 
-                startTime: now,
-                keyCreatedAt: now, 
-                requiredWait: waitTime 
+                ownerIP: ip, nextKey: nextKey, lastTime: now, startTime: now, keyCreatedAt: now, requiredWait: waitTime 
             };
 
-            const script = generateNextLayer(host, currentPath, 1, sessionID, nextKey, waitTime);
-            return res.status(200).send(script);
+            return res.status(200).send(generateNextLayer(host, currentPath, 1, sessionID, nextKey, waitTime));
         }
 
-        // == LAYER TENGAH (GANTI ID & KEY) == \\
         if (currentStep < SETTINGS.TOTAL_LAYERS) {
             const oldID = id;
             const newID = Math.random().toString(36).substring(2, 12); 
             const nextKey = Math.random().toString(36).substring(2, 8); 
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            sessions[newID] = {
-                ...sessions[oldID],
-                nextKey: nextKey,
-                lastTime: now,
-                keyCreatedAt: now,
-                requiredWait: waitTime
-            };
-
+            sessions[newID] = { ...sessions[oldID], nextKey: nextKey, lastTime: now, keyCreatedAt: now, requiredWait: waitTime };
             delete sessions[oldID]; 
 
-            const script = generateNextLayer(host, currentPath, currentStep + 1, newID, nextKey, waitTime);
-            return res.status(200).send(script);
+            return res.status(200).send(generateNextLayer(host, currentPath, currentStep + 1, newID, nextKey, waitTime));
         }
 
-        // == FINAL == \\
         if (currentStep === SETTINGS.TOTAL_LAYERS) {
+            // MENUNGGU WEBHOOK SELESAI
             await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`);
+            
             delete sessions[id];
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
