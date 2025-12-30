@@ -10,10 +10,10 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED DALAM 10 DETIK (MS) == \\
     KEY_LIFETIME: 5000, // == KEY/ID EXPIRY: MATI DALAM 5 DETIK (MS) == \\
-    PLAIN_TEXT_RESP: "memek mau?",
+    PLAIN_TEXT_RESP: "kenapa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("ZiFi Security: Full Equal URL Pattern Verified!")
+        print("ZiFi Security: Secure Hash Pattern Verified!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -46,17 +46,14 @@ async function sendWebhookLog(msg) {
     });
 
     const url = new URL(SETTINGS.WEBHOOK);
-    return new Promise((resolve) => {
-        const req = https.request({
-            hostname: url.hostname,
-            path: url.pathname,
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        }, (res) => resolve(true));
-        req.on('error', () => resolve(false));
-        req.write(data);
-        req.end();
+    const req = https.request({
+        hostname: url.hostname,
+        path: url.pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
     });
+    req.write(data);
+    req.end();
 }
 
 // === FUNGSI PLAIN TEXT / RAW === \\
@@ -65,11 +62,11 @@ function sendPlainResponse(res, customMsg = null) {
     return res.status(200).send(responseBody);
 }
 
-// === FUNGSI LAYER (FULL EQUAL - NO &) === \\
+// === FUNGSI LAYER (SECURE HASH PATTERN) === \\
 function generateNextLayer(host, currentPath, step, id, nextKey, nextWait) {
-    // URL TANPA & : ?=step=id=key
-    const weirdUrl = `https://${host}${currentPath}?=${step}=${id}=${nextKey}`;
-    return `-- Layer ${step}\ntask.wait(${nextWait/1000})\nloadstring(game:HttpGet("${weirdUrl}"))()`;
+    // URL MENGGUNAKAN SATU PARAMETER: ?_=step.id.key
+    const secureUrl = `https://${host}${currentPath}?_=${step}.${id}.${nextKey}`;
+    return `-- Layer ${step}\ntask.wait(${nextWait/1000})\nloadstring(game:HttpGet("${secureUrl}"))()`;
 }
 
 // === MAIN HANDLER (EXPORT) === \\
@@ -80,10 +77,9 @@ module.exports = async (req, res) => {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == LOGIKA PARSING URL MANUAL (MENGHAPUS &) == \\
-    const fullUrl = req.url || "";
-    const queryString = fullUrl.split('?')[1] || ""; 
-    const params = queryString.split('=').filter(v => v !== "");
+    // == LOGIKA PARSING PARAMETER TUNGGAL == \\
+    const rawData = req.query._ || ""; 
+    const params = rawData.split('.'); // Memecah data berdasarkan titik
     
     const step = params[0]; 
     const id = params[1];   
@@ -91,13 +87,12 @@ module.exports = async (req, res) => {
     
     const currentStep = parseInt(step) || 0;
     const host = req.headers.host;
-    const currentPath = fullUrl.split('?')[0];
+    const currentPath = req.url.split('?')[0];
 
     // == VALIDASI USER AGENT (ROBLOX ONLY) == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
     if (!isRoblox) return sendPlainResponse(res);
 
-    // == CEK BLACKLIST == \\
     if (blacklist[ip]) return res.status(403).send("SECURITY : BANNED ACCESS!");
 
     try {
@@ -105,28 +100,25 @@ module.exports = async (req, res) => {
         if (currentStep > 0) {
             const session = sessions[id]; 
             
-            // == VERIFIKASI SESI == \\
-            if (!session || session.ownerIP !== ip) return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+            if (!session || session.ownerIP !== ip) {
+                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+            }
 
-            // == VERIFIKASI KADALUWARSA SESI (10 DETIK) == \\
             if (now - session.startTime > SETTINGS.SESSION_EXPIRY) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : SESSION EXPIRED.");
             }
 
-            // == VERIFIKASI KEY/ID LIFE (5 DETIK) == \\
             if (now - session.keyCreatedAt > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : KEY EXPIRED.");
             }
             
-            // == VERIFIKASI KEY == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
-                return res.status(200).send("SECURITY : HANDSHAKE ERROR.");
+                return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
             }
 
-            // == VERIFIKASI KECEPATAN (ANTI BOT) == \\
             const timeDiff = now - session.lastTime;
             if (timeDiff < session.requiredWait) {
                 blacklist[ip] = true;
@@ -162,7 +154,6 @@ module.exports = async (req, res) => {
             const nextKey = Math.random().toString(36).substring(2, 8); 
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            // Pindahkan data ke ID baru
             sessions[newID] = {
                 ...sessions[oldID],
                 nextKey: nextKey,
@@ -171,7 +162,7 @@ module.exports = async (req, res) => {
                 requiredWait: waitTime
             };
 
-            delete sessions[oldID]; // == HAPUS ID LAMA (GHOST ID) == \\
+            delete sessions[oldID]; 
 
             const script = generateNextLayer(host, currentPath, currentStep + 1, newID, nextKey, waitTime);
             return res.status(200).send(script);
@@ -180,10 +171,7 @@ module.exports = async (req, res) => {
         // == FINAL == \\
         if (currentStep === SETTINGS.TOTAL_LAYERS) {
             await sendWebhookLog(`✅ **SUCCESS EXECUTE**\n**IP:** \`${ip}\` berhasil melewati ${SETTINGS.TOTAL_LAYERS} layer.`);
-            
-            // == HAPUS SESI AKHIR == \\
             delete sessions[id];
-            
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
 
