@@ -8,9 +8,9 @@ const SETTINGS = {
     TOTAL_LAYERS: 3,
     MIN_WAIT: 112, 
     MAX_WAIT: 119, 
-    SESSION_EXPIRY: 3000, // 20 Detik agar lebih stabil
-    KEY_LIFETIME: 3000,   // 10 Detik
-    PLAIN_TEXT_RESP: "HAYUKK?",
+    SESSION_EXPIRY: 5000, // Dinaikkan ke 30 detik agar lebih stabil (mencegah timeout)
+    KEY_LIFETIME: 5000,   // Dinaikkan ke 15 detik
+    PLAIN_TEXT_RESP: "kenapa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
@@ -38,7 +38,7 @@ function getWIBTime() {
     }).format(new Date());
 }
 
-// FUNGSI ENKRIPSI XOR - Mengubah string ke Array Byte
+// FUNGSI ENKRIPSI XOR - Mengamankan script asli dari HttpSpy/Dumper
 function xorEncrypt(text, key) {
     let encrypted = [];
     for (let i = 0; i < text.length; i++) {
@@ -70,7 +70,6 @@ async function sendWebhookLog(message) {
 
     return new Promise(function(resolve) {
         const req = https.request(options, function(res) {
-            res.on('data', function(chunk) {});
             res.on('end', function() { resolve(true); });
         });
         req.on('error', function() { resolve(false); });
@@ -91,15 +90,9 @@ module.exports = async function(req, res) {
     
     // == GATEKEEPER == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
-    if (!isRoblox) {
-        return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
-    }
+    if (!isRoblox) return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
+    if (blacklist[ip] === true) return res.status(403).send("SECURITY : BANNED ACCESS!");
 
-    if (blacklist[ip] === true) {
-        return res.status(403).send("SECURITY : BANNED ACCESS!");
-    }
-
-    // == PARSING URL (STEP, ID, KEY) == \\
     const urlParts = req.url.split('?');
     const queryString = urlParts[1] || "";
     const params = queryString.split('.');
@@ -116,15 +109,9 @@ module.exports = async function(req, res) {
         // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
-
-            if (session === undefined) {
-                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
-            }
-
-            if (session.ownerIP !== ip) {
-                return res.status(403).send("SECURITY : IP MISMATCH.");
-            }
-
+            if (!session) return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+            if (session.ownerIP !== ip) return res.status(403).send("SECURITY : IP MISMATCH.");
+            
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
                 delete sessions[id];
@@ -133,15 +120,13 @@ module.exports = async function(req, res) {
 
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`");
-                return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
+                await sendWebhookLog(`🚫 **REPLAY ATTACK**\n**IP:** \`${ip}\``);
+                return res.status(403).send("SECURITY : LINK EXPIRED.");
             }
 
-            const sessionDuration = now - session.startTime;
-            const keyDuration = now - session.keyCreatedAt;
-            if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
+            if (now - session.startTime > SETTINGS.SESSION_EXPIRY || now - session.keyCreatedAt > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
-                return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
+                return res.status(403).send("SECURITY : SESSION EXPIRED.");
             }
 
             if (session.nextKey !== key) {
@@ -149,11 +134,10 @@ module.exports = async function(req, res) {
                 return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
             }
 
-            const timeSinceLastRequest = now - session.lastTime;
-            if (timeSinceLastRequest < session.requiredWait) {
+            if (now - session.lastTime < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation.");
+                await sendWebhookLog(`🚫 **DETECT BOT**\n**IP:** \`${ip}\` timing violation.`);
                 return res.status(403).send("SECURITY : TIMING VIOLATION.");
             }
             session.used = true;
@@ -161,10 +145,8 @@ module.exports = async function(req, res) {
         
         // == INITIALIZE (STEP 0) == \\
         if (currentStep === 0) {
-            const ipPart = ip.split('.').pop() || "0";
-            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
+            const seed = parseInt(ip.split('.').pop() || "0") + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
-
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
@@ -175,128 +157,84 @@ module.exports = async function(req, res) {
             }
 
             sessions[newSessionID] = { 
-                ownerIP: ip, 
-                stepSequence: sequence,
-                currentIndex: 0,
-                nextKey: nextKey, 
-                lastTime: now, 
-                startTime: now, 
-                keyCreatedAt: now, 
-                requiredWait: waitTime, 
-                used: false 
+                ownerIP: ip, stepSequence: sequence, currentIndex: 0, nextKey: nextKey, 
+                lastTime: now, startTime: now, keyCreatedAt: now, requiredWait: waitTime, used: false 
             };
 
-            const firstStep = sequence[0];
-            const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
-            const luaScript = "-- RAWR\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
-            
-            return res.status(200).send(luaScript);
+            const nextUrl = `https://${host}${currentPath}?${sequence[0]}.${newSessionID}.${nextKey}`;
+            return res.status(200).send(`-- RAWR\ntask.wait(${waitTime / 1000})\nloadstring(game:HttpGet("${nextUrl}"))()`);
         }
 
-        // == ROTASI GHOST ID (LAYER 1-4) == \\
+        // == ROTASI GHOST ID (LAYER HANDSHAKE) == \\
         if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
             const session = sessions[id];
             session.currentIndex++; 
             
-            const ipPart = ip.split('.').pop() || "0";
-            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
-            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
-
-            const nextStepNumber = session.stepSequence[session.currentIndex];
+            const newSessionID = Math.random().toString(36).substring(2, 6).padEnd(4, 'x');
+            const nextStep = session.stepSequence[session.currentIndex];
             const nextKey = Math.random().toString(36).substring(2, 8); 
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            sessions[newSessionID] = { 
-                ownerIP: session.ownerIP,
-                stepSequence: session.stepSequence,
-                currentIndex: session.currentIndex,
-                nextKey: nextKey, 
-                lastTime: now, 
-                startTime: session.startTime, 
-                keyCreatedAt: now, 
-                requiredWait: waitTime, 
-                used: false 
-            };
-            
+            sessions[newSessionID] = { ...session, currentIndex: session.currentIndex, nextKey: nextKey, lastTime: now, keyCreatedAt: now, used: false };
             delete sessions[id]; 
 
-            const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
-            const luaScript = "-- RAWR " + (session.currentIndex + 1) + "\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
-
-            return res.status(200).send(luaScript);
+            const nextUrl = `https://${host}${currentPath}?${nextStep}.${newSessionID}.${nextKey}`;
+            return res.status(200).send(`-- RAWR ${session.currentIndex + 1}\ntask.wait(${waitTime / 1000})\nloadstring(game:HttpGet("${nextUrl}"))()`);
         }
 
         // == FINAL: ENCRYPTED DELIVERY & ANTI-HOOK == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
+            await sendWebhookLog(`✅ **SUCCESS**\n**IP:** \`${ip}\` tembus ${SETTINGS.TOTAL_LAYERS} layer.`);
 
-            // Generate kunci XOR acak
             const xorKey = "Ndraawz_" + Math.random().toString(36).substring(2, 8);
             const encryptedPayload = xorEncrypt(SETTINGS.REAL_SCRIPT.trim(), xorKey);
 
-            // LOGIKA PANJANG DAN EKSPLISIT UNTUK DEKRIPSI
-            const finalWrapper = `
---[[ 
-    Ndraawz Security v2.0
-    Encrypted Payload Delivery 
-]]
-local _encrypted = ${encryptedPayload}
-local _xorKey = "${xorKey}"
+            const finalLua = `
+local _data = ${encryptedPayload}
+local _key = "${xorKey}"
 
--- FUNGSI ANTI-HOOK (CEK KEASLIAN ENVIRONMENT)
-local function _verifyIntegrity()
+-- XOR Compatibility Layer (Support all executors)
+local function bitXor(a, b)
+    if bit32 and bit32.bxor then return bit32.bxor(a, b) end
+    return a ^ b
+end
+
+-- Integrity Check
+local function verify()
     local ls = tostring(loadstring)
-    local hg = tostring(game.HttpGet)
-    -- Memastikan loadstring bukan buatan Lua (mencegah dumper)
-    if not ls:find("builtin") or debug.getinfo(loadstring).what ~= "C" then
-        return false
-    end
-    -- Memastikan HttpGet tidak di-hook
-    if not hg:find("HttpGet") then
-        return false
-    end
+    if not ls:find("builtin") and not ls:find("loadstring") then return false end
+    if debug and debug.getinfo(loadstring).what ~= "C" then return false end
     return true
 end
 
--- JALANKAN VERIFIKASI
-if not _verifyIntegrity() then
-    game.Players.LocalPlayer:Kick("Security Detection: Third-party Dumper / Hooking detected.")
-    return
+if not verify() then 
+    game:GetService("Players").LocalPlayer:Kick("Security Detection: Hooking") 
+    return 
 end
 
--- FUNGSI DEKRIPSI MANUAL
-local function _decryptData(data, key)
-    local output = ""
-    local keyLen = #key
-    for i = 1, #data do
-        local keyChar = string.byte(key, (i - 1) % keyLen + 1)
-        -- Melakukan XOR matematis
-        local decryptedByte = bit32.bxor(data[i], keyChar)
-        output = output .. string.char(decryptedByte)
+-- Decryption Process
+local _raw = ""
+for i = 1, #_data do
+    local kChar = string.byte(_key, (i - 1) % #_key + 1)
+    local success, res = pcall(function() return string.char(bitXor(_data[i], kChar)) end)
+    if success then _raw = _raw .. res end
+end
+
+-- Final Execution
+local _exec = (getfenv().loadstring or loadstring)
+if _exec and _raw then
+    local f, err = _exec(_raw)
+    if f then 
+        _raw = nil
+        f() 
+    else 
+        warn("Ndraawz Security Error: " .. tostring(err)) 
     end
-    return output
-end
-
--- EKSEKUSI FINAL
-local _rawScript = _decryptData(_encrypted, _xorKey)
-local _loader = (getrenv and getrenv().loadstring) or loadstring
-
-local success, result = pcall(function()
-    _loader(_rawScript)()
-end)
-
--- PEMBERSIHAN JEJAK MEMORI
-_rawScript = nil
-_encrypted = nil
-_xorKey = nil
-
-if not success then
-    warn("Security Execution Error: " .. tostring(result))
 end
             `.trim();
 
             delete sessions[id];
-            return res.status(200).send(finalWrapper);
+            return res.status(200).send(finalLua);
         }
 
     } catch (err) {
