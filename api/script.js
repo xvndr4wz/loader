@@ -6,12 +6,11 @@ const https = require('https');
 const SETTINGS = {
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 200, // == JEDA MINIMAL DINAIKKAN AGAR STABIL (MS) == \\
-    MAX_WAIT: 250, // == JEDA MAXIMAL DINAIKKAN AGAR STABIL (MS) == \\
-    LATENCY_TOLERANCE: 150, // == TOLERANSI PING AGAR BOT TIDAK BISA TEMBUS == \\
-    SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (30 DETIK) == \\
-    KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (10 DETIK) == \\
-    PLAIN_TEXT_RESP: "bokep?",
+    MIN_WAIT: 112, // = JEDA MINIMAL (MS) = \\
+    MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
+    SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
+    KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
+    PLAIN_TEXT_RESP: "kenapa?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
@@ -96,12 +95,13 @@ module.exports = async function(req, res) {
 
     // == GATEKEEPER : VALIDASI AWAL == \\
     const isRoblox = agent.includes("Roblox") || req.headers['roblox-id'];
-    if (isRoblox === false) {
-        return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
+    if (!isRoblox) {
+        // MENGEMBALIKAN PLAIN TEXT RESP KETIKA BUKAN ROBLOX
+        return res.status(200).end(SETTINGS.PLAIN_TEXT_RESP);
     }
 
     if (blacklist[ip] === true) {
-        return res.status(403).send("SECURITY : BANNED ACCESS!");
+        return res.status(403).end("SECURITY : BANNED ACCESS!");
     }
 
     try {
@@ -111,19 +111,19 @@ module.exports = async function(req, res) {
 
             // == CHECK APAKAH SESI ADA (GHOST LINK CHECK) == \\
             if (session === undefined) {
-                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+                return res.status(403).end("SECURITY : SESSION NOT FOUND.");
             }
 
             // == IP LOCK CHECK == \\
             if (session.ownerIP !== ip) {
-                return res.status(403).send("SECURITY : IP MISMATCH / INVALID SESSION.");
+                return res.status(403).end("SECURITY : IP MISMATCH / INVALID SESSION.");
             }
 
             //  == ONE-TIME USE == \\
             if (session.used === true) {
                 blacklist[ip] = true;
                 await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
-                return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
+                return res.status(403).end("SECURITY : LINK EXPIRED (OTP).");
             }
 
             // == EXPIRY CHECK == \\
@@ -131,24 +131,24 @@ module.exports = async function(req, res) {
             const keyDuration = now - session.keyCreatedAt;
             if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
-                return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
+                return res.status(403).end("SECURITY : SESSION/KEY EXPIRED.");
             }
 
             // == KEY & TIMING HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
-                return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
+                return res.status(403).end("SECURITY : HANDSHAKE ERROR.");
             }
 
-            // == VALIDASI TIMING YANG DIPERKETAT == \\
+            // == LOGIC TIMING SUPER STRICT (TANPA TOLERANSI) == \\
             const timeSinceLastRequest = now - session.lastTime;
-            const absoluteMinWait = session.requiredWait - SETTINGS.LATENCY_TOLERANCE;
-
-            if (timeSinceLastRequest < absoluteMinWait) {
+            
+            // Jika waktu datang lebih cepat sedikitpun dari requiredWait, banned.
+            if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (Too Fast).");
-                return res.status(403).send("SECURITY : TIMING VIOLATION.");
+                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (STRICT).");
+                return res.status(403).end("SECURITY : TIMING VIOLATION.");
             }
             session.used = true;
         }
