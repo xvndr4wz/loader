@@ -10,11 +10,10 @@ const SETTINGS = {
     MAX_WAIT: 119, 
     SESSION_EXPIRY: 10000, 
     KEY_LIFETIME: 5000,   
-    PLAIN_TEXT_RESP: "NGAPAIN LU?", 
-    ALLOWED_PLACE_IDS: ["123456789", "987654321"], // <== Masukkan ID Map kamu di sini (String)
+    PLAIN_TEXT_RESP: "NGAPAIN LOL?", // Pesan kustom untuk bot/browser
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("Ndraawz Security: Authorized Game Session!")
+        print("Ndraawz Security: Valid Server Session Detected!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -27,6 +26,16 @@ const SETTINGS = {
 // ==========================================
 let sessions = {}; 
 let blacklist = {}; 
+
+// ==========================================
+// AUTO CLEANUP
+// ==========================================
+setInterval(() => {
+    const now = Date.now();
+    for (const id in sessions) {
+        if (now - sessions[id].startTime > SETTINGS.SESSION_EXPIRY + 2000) delete sessions[id];
+    }
+}, 30000);
 
 // ==========================================
 //  FUNGSI WEBHOOK EMBED
@@ -65,14 +74,6 @@ async function sendWebhookLog(message) {
     req.end();
 }
 
-// Cleaning
-setInterval(() => {
-    const now = Date.now();
-    for (const id in sessions) {
-        if (now - sessions[id].startTime > SETTINGS.SESSION_EXPIRY + 2000) delete sessions[id];
-    }
-}, 30000);
-
 // ==========================================
 // MAIN HANDLER
 // ==========================================
@@ -83,23 +84,14 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == PENGECEKAN HEADER INTERNAL ROBLOX == \\
-    const robloxPlaceId = req.headers['x-roblox-place-id']; // ID Map
-    const robloxId = req.headers['roblox-id'];             // Session ID Roblox
-    
-    // Gatekeeper: Harus ada User-Agent Roblox DAN harus ada ID Map (Place ID)
-    const isRoblox = agent.includes("Roblox") && robloxPlaceId;
+    // == GATEKEEPER STRICT (Validasi Server Roblox) == \\
+    // Bot atau browser tidak akan memiliki header 'x-roblox-place-id'
+    const robloxPlaceId = req.headers['x-roblox-place-id']; 
+    const isRobloxAgent = agent.includes("Roblox");
 
-    if (!isRoblox) {
-        // Jika bot atau browser (tidak punya Place ID header), langsung 403
+    // Jika tidak ada Place ID atau bukan agent Roblox, kirim 403 (NGAPAIN LU?)
+    if (!isRobloxAgent || !robloxPlaceId) {
         return res.status(403).send(SETTINGS.PLAIN_TEXT_RESP);
-    }
-
-    // == PENGECEKAN WHITELIST MAP == \\
-    if (SETTINGS.ALLOWED_PLACE_IDS.length > 0) {
-        if (!SETTINGS.ALLOWED_PLACE_IDS.includes(robloxPlaceId)) {
-            return res.status(403).send("SECURITY : UNAUTHORIZED GAME / PLACE ID.");
-        }
     }
 
     if (blacklist[ip] === true) {
@@ -135,7 +127,7 @@ module.exports = async function(req, res) {
 
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`");
+                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`\n**Map ID:** `" + robloxPlaceId + "`");
                 return res.status(403).send("SECURITY : LINK EXPIRED.");
             }
 
@@ -149,10 +141,11 @@ module.exports = async function(req, res) {
                 return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
             }
 
-            if (now - session.lastTime < session.requiredWait) {
+            const timeSinceLastRequest = now - session.lastTime;
+            if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation.");
+                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "`\n**Map ID:** `" + robloxPlaceId + "`");
                 return res.status(403).send("SECURITY : TIMING VIOLATION.");
             }
             session.used = true;
@@ -219,7 +212,7 @@ module.exports = async function(req, res) {
 
         // == FINAL PAYLOAD == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
+            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "`\n**Map ID:** `" + robloxPlaceId + "`");
             delete sessions[id];
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
