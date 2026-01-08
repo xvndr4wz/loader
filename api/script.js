@@ -1,36 +1,47 @@
 const https = require('https');
 
 // ============================
-// SETTINGS / KONFIGURASI
+// SETTINGS
 // ============================
 const SETTINGS = {
-    // Ganti dengan URL Webhook Discord Anda
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
-    TOTAL_LAYERS: 5,        // Jumlah layer RAWR (0 sampai 4)
-    MIN_WAIT: 112,          // Waktu tunggu minimal (ms)
-    MAX_WAIT: 119,          // Waktu tunggu maksimal (ms)
-    SESSION_EXPIRY: 30000,  // Masa berlaku sesi (30 detik)
-    PLAIN_TEXT_RESP: "kena?",
-    // MASUKKAN SCRIPT ASLI ANDA DI SINI
+    TOTAL_LAYERS: 5,
+    MIN_WAIT: 112, // = JEDA MINIMAL (MS) = \\
+    MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
+    SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
+    KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
+    PLAIN_TEXT_RESP: "NGAPAIN MEK?", // == PESAN UNTUK BOT/BROWSER == \\
     REAL_SCRIPT: `
-        print("Ndraawz Security: Script Berhasil Dijalankan!")
+        -- SCRIPT ASLI ANDA
+        print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
-            print("Halo " .. p.Name .. ", script ini aman dari dumper!")
-            p.Character.Humanoid.Jump = true
+            p.Character.Humanoid.Health -= 50
         end
     `
 };
 
-// ============================
+// ==========================================
 // MEMORY STORAGE
-// ============================
+// ==========================================
 let sessions = {}; 
 let blacklist = {}; 
 
-// ============================
-// HELPER FUNCTIONS
-// ============================
+// ==========================================
+// AUTO CLEANUP (Mencegah Memory Leak)
+// ==========================================
+setInterval(() => {
+    const now = Date.now();
+    for (const id in sessions) {
+        if (now - sessions[id].startTime > SETTINGS.SESSION_EXPIRY + 2000) {
+            delete sessions[id];
+        }
+    }
+}, 30000); // Bersihkan setiap 30 detik
+
+// ==========================================
+//  FUNGSI WEBHOOK EMBED
+// ==========================================
 function getWIBTime() {
     return new Intl.DateTimeFormat('id-ID', {
         timeZone: 'Asia/Jakarta',
@@ -45,7 +56,7 @@ async function sendWebhookLog(message) {
             title: "❗️Ndraawz Security❗️",
             description: message,
             color: 0xff0000,
-            footer: { text: "Ndraawz Security | " + getWIBTime() }
+            footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
         }]
     });
 
@@ -60,134 +71,184 @@ async function sendWebhookLog(message) {
         }
     };
 
-    return new Promise((resolve) => {
-        const req = https.request(options, (res) => {
-            res.on('end', () => resolve(true));
+    return new Promise(function(resolve) {
+        const req = https.request(options, function(res) {
+            res.on('data', function(chunk) {});
+            res.on('end', function() { resolve(true); });
         });
-        req.on('error', () => resolve(false));
+        req.on('error', function() { resolve(false); });
         req.write(data);
         req.end();
     });
 }
 
-// ============================
-// MAIN EXPORT (VERCEL / NODE.JS)
-// ============================
+// ==========================================
+// MAIN HANDLER
+// ==========================================
 module.exports = async function(req, res) {
+    // Set default ke plain text
     res.setHeader('Content-Type', 'text/plain');
     
     const now = Date.now();
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
-    const host = req.headers.host;
-    const currentPath = req.url.split('?')[0];
     
-    // 1. GATEKEEPER: Hanya izinkan akses dari Roblox
-    if (!agent.includes("Roblox")) {
-        return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
+    // == GATEKEEPER STRICT (Hanya Roblox) == \\
+    const isRoblox = agent.includes("Roblox") || req.headers['x-roblox-test'] || req.headers['roblox-id'];
+    
+    if (!isRoblox) {
+        // JIKA BUKAN ROBLOX (BOT/BROWSER) -> KASIH 403 DAN PESAN CUSTOM
+        return res.status(403).send(SETTINGS.PLAIN_TEXT_RESP);
     }
 
-    // 2. BLACKLIST CHECK
-    if (blacklist[ip]) {
-        return res.status(403).send("ACCESS DENIED");
+    if (blacklist[ip] === true) {
+        return res.status(403).send("SECURITY : BANNED ACCESS!");
     }
 
-    // 3. ENDPOINT JEBAKAN (Honeypot)
-    // Jika dumper mencoba mendownload URL ini, berikan isi zonk
-    if (req.url.includes("verify_auth.lua")) {
-        return res.status(200).send("-- HAI\n-- Nice try, but the script is not here!");
-    }
-
-    // 4. PARSING PARAMETERS (Format: ?step.id.key)
+    // == PARSING URL (STEP, ID, KEY) == \\
     const urlParts = req.url.split('?');
-    const params = (urlParts[1] || "").split('.');
+    const queryString = urlParts[1] || "";
+    const params = queryString.split('.');
     
-    const step = parseInt(params[0]) || 0;
-    const id = params[1];
-    const key = params[2];
+    const step = params[0]; 
+    const id = params[1];   
+    const key = params[2];  
+    
+    const currentStep = parseInt(step) || 0;
+    const host = req.headers.host;
+    const currentPath = urlParts[0];
 
     try {
-        // == LOGIKA VALIDASI SESI (STEP > 0) == \\
-        if (step > 0) {
+        // == HANDSHAKE VALIDATION == \\
+        if (currentStep > 0) {
             const session = sessions[id];
-            if (!session) return res.status(403).send("INVALID SESSION");
-            if (session.ownerIP !== ip) return res.status(403).send("IP MISMATCH");
-            
-            // Replay Attack Protection
-            if (session.used) {
-                return res.status(200).send("-- HAI"); 
+
+            // == CHECK APAKAH SESI ADA == \\
+            if (session === undefined) {
+                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
             }
 
-            // Handshake Key Check
-            if (session.nextKey !== key) return res.status(403).send("KEY MISMATCH");
+            // == IP LOCK CHECK == \\
+            if (session.ownerIP !== ip) {
+                return res.status(403).send("SECURITY : IP MISMATCH.");
+            }
 
-            // Timing Check (Anti-Bot)
-            if (now - session.lastTime < session.requiredWait) {
+            // == VALIDASI URUTAN STEP RANDOM (1-300) == \\
+            const expectedStep = session.stepSequence[session.currentIndex];
+            if (currentStep !== expectedStep) {
+                delete sessions[id];
+                return res.status(403).send("SECURITY : INVALID SEQUENCE.");
+            }
+
+            //  == ONE-TIME USE == \\
+            if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog(`🚫 **BOT DETECTED**\nIP: \`${ip}\` melanggar batas waktu.`);
-                return res.status(403).send("TOO FAST");
+                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
+                return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
+            }
+
+            // == EXPIRY CHECK == \\
+            const sessionDuration = now - session.startTime;
+            const keyDuration = now - session.keyCreatedAt;
+            if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
+                delete sessions[id];
+                return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
+            }
+
+            // == KEY & TIMING HANDSHAKE == \\
+            if (session.nextKey !== key) {
+                delete sessions[id];
+                return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
+            }
+
+            const timeSinceLastRequest = now - session.lastTime;
+            if (timeSinceLastRequest < session.requiredWait) {
+                blacklist[ip] = true;
+                delete sessions[id];
+                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (No Tolerance).");
+                return res.status(403).send("SECURITY : TIMING VIOLATION.");
             }
             session.used = true;
         }
+        
+        // == INISIALISASI SESI PERTAMA == \\
+        if (currentStep === 0) {
+            // == GENERATE ID 4 BERBASIS IP == \\
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
+            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
 
-        // == LOGIKA LAYER RAWR (STEP 0 s/d 3) == \\
-        if (step < SETTINGS.TOTAL_LAYERS - 1) {
-            const newID = Math.random().toString(36).substring(2, 6);
             const nextKey = Math.random().toString(36).substring(2, 8);
-            const nextStep = step + 1;
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            sessions[newID] = { 
+            // == GENERATE STEP RANDOM UNIK (1-300) == \\
+            let sequence = [];
+            while(sequence.length < SETTINGS.TOTAL_LAYERS) {
+                let r = Math.floor(Math.random() * 300) + 1;
+                if(!sequence.includes(r)) sequence.push(r);
+            }
+
+            sessions[newSessionID] = { 
                 ownerIP: ip, 
+                stepSequence: sequence,
+                currentIndex: 0,
                 nextKey: nextKey, 
                 lastTime: now, 
-                requiredWait: waitTime,
+                startTime: now, 
+                keyCreatedAt: now, 
+                requiredWait: waitTime, 
                 used: false 
             };
 
-            // Hapus sesi lama agar Ghost ID bekerja
-            if (id) delete sessions[id];
-
-            const nextUrl = `https://${host}${currentPath}?${nextStep}.${newID}.${nextKey}`;
-            return res.status(200).send(`-- RAWR ${nextStep}\ntask.wait(${waitTime/1000})\nloadstring(game:HttpGet("${nextUrl}"))()`);
+            const firstStep = sequence[0];
+            const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
+            const luaScript = "-- RAWR\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+            
+            return res.status(200).send(luaScript);
         }
 
-        // == FINAL LAYER (STEP 4): JEBAKAN BATMAN == \\
-        if (step === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog(`✅ **SUCCESS**\nIP: \`${ip}\` tembus sampai akhir.`);
+        // == ROTASI GHOST ID == \\
+        if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
+            const session = sessions[id];
+            session.currentIndex++; 
+            
+            // == GENERATE ID BARU 4 KARAKTER == \\
+            const ipPart = ip.split('.').pop() || "0";
+            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
+            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
 
-            const scriptAsli = SETTINGS.REAL_SCRIPT.trim();
-            const fakeUrl = `https://${host}${currentPath}/verify_auth.lua?id=${id}`;
+            const nextStepNumber = session.stepSequence[session.currentIndex];
+            const nextKey = Math.random().toString(36).substring(2, 8); 
+            const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            // Script yang dikirim ke Roblox (Wrapper Pelindung)
-            const finalWrapper = `
---[[ 
-    Ndraawz Security v4.0 
-    Initializing secure environment...
-]]
+            sessions[newSessionID] = { 
+                ownerIP: session.ownerIP,
+                stepSequence: session.stepSequence,
+                currentIndex: session.currentIndex,
+                nextKey: nextKey, 
+                lastTime: now, 
+                startTime: session.startTime, 
+                keyCreatedAt: now, 
+                requiredWait: waitTime, 
+                used: false 
+            };
+            
+            delete sessions[id]; 
 
--- JEBAKAN: Dumper akan mencatat HttpGet ini dan menyimpan hasilnya (-- HAI)
-task.spawn(function()
-    pcall(function() 
-        game:HttpGet("${fakeUrl}") 
-    end)
-end)
+            const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
+            const luaScript = "-- RAWR " + (session.currentIndex + 1) + "\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
 
--- REAL SCRIPT: Disembunyikan di dalam variabel lokal agar dumper tidak menangkapnya sebagai hasil HttpGet utama
-local _0xPayload = [=[${scriptAsli}]=]
+            return res.status(200).send(luaScript);
+        }
 
--- Eksekusi tanpa meninggalkan jejak di HttpGet log
-local _0xRun = loadstring(_0xPayload)
-_0xPayload = nil -- Segera hapus dari memori
-_0xRun()
-            `.trim();
-
+        // == FINAL KIRIM SCRIPT == \\
+        if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
+            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer acak.");
             delete sessions[id];
-            return res.status(200).send(finalWrapper);
+            return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
         }
 
     } catch (err) {
-        console.error(err);
-        return res.status(500).send("INTERNAL SERVER ERROR");
+        return res.status(500).send("SECURITY : INTERNAL ERROR!");
     }
 };
