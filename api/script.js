@@ -10,7 +10,7 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "NGAPAIN MEK?", // == PESAN UNTUK BOT/BROWSER == \\
+    PLAIN_TEXT_RESP: "NGAPAIN LU?", // == PESAN UNTUK BOT/BROWSER == \\
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
@@ -37,7 +37,7 @@ setInterval(() => {
             delete sessions[id];
         }
     }
-}, 30000); // Bersihkan setiap 30 detik
+}, 30000); 
 
 // ==========================================
 //  FUNGSI WEBHOOK EMBED
@@ -86,18 +86,20 @@ async function sendWebhookLog(message) {
 // MAIN HANDLER
 // ==========================================
 module.exports = async function(req, res) {
-    // Set default ke plain text
     res.setHeader('Content-Type', 'text/plain');
     
     const now = Date.now();
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == GATEKEEPER STRICT (Hanya Roblox) == \\
-    const isRoblox = agent.includes("Roblox") || req.headers['x-roblox-test'] || req.headers['roblox-id'];
-    
-    if (!isRoblox) {
-        // JIKA BUKAN ROBLOX (BOT/BROWSER) -> KASIH 403 DAN PESAN CUSTOM
+    // == GATEKEEPER ULTRA-STRICT == \\
+    // Memeriksa User-Agent DAN Header wajib Roblox (Roblox-Id atau Place-Id)
+    const isRobloxAgent = agent.includes("Roblox");
+    const hasRobloxHeader = req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || req.headers['x-roblox-test'];
+
+    if (!isRobloxAgent || !hasRobloxHeader) {
+        // Jika IP mencoba menebak tanpa header lengkap, ban sementara & beri 403
+        blacklist[ip] = true; 
         return res.status(403).send(SETTINGS.PLAIN_TEXT_RESP);
     }
 
@@ -123,31 +125,26 @@ module.exports = async function(req, res) {
         if (currentStep > 0) {
             const session = sessions[id];
 
-            // == CHECK APAKAH SESI ADA == \\
             if (session === undefined) {
                 return res.status(403).send("SECURITY : SESSION NOT FOUND.");
             }
 
-            // == IP LOCK CHECK == \\
             if (session.ownerIP !== ip) {
                 return res.status(403).send("SECURITY : IP MISMATCH.");
             }
 
-            // == VALIDASI URUTAN STEP RANDOM (1-300) == \\
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : INVALID SEQUENCE.");
             }
 
-            //  == ONE-TIME USE == \\
             if (session.used === true) {
                 blacklist[ip] = true;
                 await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
                 return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
             }
 
-            // == EXPIRY CHECK == \\
             const sessionDuration = now - session.startTime;
             const keyDuration = now - session.keyCreatedAt;
             if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
@@ -155,7 +152,6 @@ module.exports = async function(req, res) {
                 return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
             }
 
-            // == KEY & TIMING HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
@@ -173,7 +169,6 @@ module.exports = async function(req, res) {
         
         // == INISIALISASI SESI PERTAMA == \\
         if (currentStep === 0) {
-            // == GENERATE ID 4 BERBASIS IP == \\
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
@@ -181,7 +176,6 @@ module.exports = async function(req, res) {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            // == GENERATE STEP RANDOM UNIK (1-300) == \\
             let sequence = [];
             while(sequence.length < SETTINGS.TOTAL_LAYERS) {
                 let r = Math.floor(Math.random() * 300) + 1;
@@ -202,8 +196,9 @@ module.exports = async function(req, res) {
 
             const firstStep = sequence[0];
             const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
-            const luaScript = "-- RAWR\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             
+            // Mengirim loader awal hanya jika lolos cek strict di atas
+            const luaScript = "-- RAWR\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             return res.status(200).send(luaScript);
         }
 
@@ -212,7 +207,6 @@ module.exports = async function(req, res) {
             const session = sessions[id];
             session.currentIndex++; 
             
-            // == GENERATE ID BARU 4 KARAKTER == \\
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
