@@ -10,7 +10,7 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "kenapa?",
+    PLAIN_TEXT_RESP: "APA NYET?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
@@ -190,7 +190,9 @@ module.exports = async function(req, res) {
 
             const firstStep = sequence[0];
             const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
-            const luaScript = "-- RAWR\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+            
+            // RESPON SATU BARIS SESUAI PERMINTAAN
+            const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             
             return res.status(200).send(luaScript);
         }
@@ -224,7 +226,9 @@ module.exports = async function(req, res) {
             delete sessions[id]; 
 
             const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
-            const luaScript = "-- RAWR " + (session.currentIndex + 1) + "\ntask.wait(" + (waitTime / 1000) + ")\nloadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+            
+            // RESPON SATU BARIS SESUAI PERMINTAAN
+            const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
 
             return res.status(200).send(luaScript);
         }
