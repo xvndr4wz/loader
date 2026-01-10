@@ -10,7 +10,7 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "APA NYET?",
+    PLAIN_TEXT_RESP: "APA NYE?",
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
         print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
@@ -26,6 +26,14 @@ const SETTINGS = {
 // ==========================================
 let sessions = {}; 
 let blacklist = {}; 
+
+// ==========================================
+// FUNGSI UNTUK MENGHASILKAN ERROR ACAK
+// ==========================================
+function getRandomError() {
+    const errorCodes = [400, 401, 403, 404, 500, 502, 503];
+    return errorCodes[Math.floor(Math.random() * errorCodes.length)];
+}
 
 // ==========================================
 //  FUNGSI WEBHOOK EMBED
@@ -85,12 +93,12 @@ module.exports = async function(req, res) {
     const isRoblox = agent.includes("Roblox") && (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
 
     if (!isRoblox) {
-        // Jika bot/browser terdeteksi (tidak punya header roblox), kasih 403 + Pesan Custom
-        return res.status(403).send(SETTINGS.PLAIN_TEXT_RESP);
+        // Status code acak + Teks Banned
+        return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
     }
 
     if (blacklist[ip] === true) {
-        return res.status(403).send("SECURITY : BANNED ACCESS!");
+        return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
     }
 
     // == PARSING URL (STEP, ID, KEY) == \\
@@ -113,26 +121,26 @@ module.exports = async function(req, res) {
 
             // == CHECK APAKAH SESI ADA == \\
             if (session === undefined) {
-                return res.status(403).send("SECURITY : SESSION NOT FOUND.");
+                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
             // == IP LOCK CHECK == \\
             if (session.ownerIP !== ip) {
-                return res.status(403).send("SECURITY : IP MISMATCH.");
+                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
             // == VALIDASI URUTAN STEP RANDOM (1-300) == \\
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
                 delete sessions[id];
-                return res.status(403).send("SECURITY : INVALID SEQUENCE.");
+                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
             //  == ONE-TIME USE == \\
             if (session.used === true) {
                 blacklist[ip] = true;
                 await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
-                return res.status(403).send("SECURITY : LINK EXPIRED (OTP).");
+                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
             // == EXPIRY CHECK == \\
@@ -140,13 +148,13 @@ module.exports = async function(req, res) {
             const keyDuration = now - session.keyCreatedAt;
             if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
-                return res.status(403).send("SECURITY : SESSION/KEY EXPIRED.");
+                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
             // == KEY & TIMING HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
-                return res.status(403).send("SECURITY : HANDSHAKE ERROR.");
+                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
             const timeSinceLastRequest = now - session.lastTime;
@@ -154,7 +162,7 @@ module.exports = async function(req, res) {
                 blacklist[ip] = true;
                 delete sessions[id];
                 await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (No Tolerance).");
-                return res.status(403).send("SECURITY : TIMING VIOLATION.");
+                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             session.used = true;
         }
@@ -241,6 +249,6 @@ module.exports = async function(req, res) {
         }
 
     } catch (err) {
-        return res.status(500).send("SECURITY : INTERNAL ERROR!");
+        return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
     }
 };
