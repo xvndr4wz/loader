@@ -10,15 +10,8 @@ const SETTINGS = {
     MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
     SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
     KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
-    PLAIN_TEXT_RESP: "APA NYE?",
-    REAL_SCRIPT: `
-        -- SCRIPT ASLI ANDA
-        print("Ndraawz Security: Logika Panjang & Eksplisit Active!")
-        local p = game.Players.LocalPlayer
-        if p.Character and p.Character:FindFirstChild("Humanoid") then
-            p.Character.Humanoid.Health -= 50
-        end
-    `
+    PLAIN_TEXT_RESP: "APANYE?",
+    GITHUB_RAW: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/Shiftlockbig"
 };
 
 // ==========================================
@@ -26,6 +19,18 @@ const SETTINGS = {
 // ==========================================
 let sessions = {}; 
 let blacklist = {}; 
+
+// ==========================================
+// FUNGSI ENKRIPSI UNTUK BYPASS DUMPER
+// ==========================================
+function megumiEncrypt(text, key) {
+    let b64 = Buffer.from(text).toString('base64');
+    let xor = "";
+    for (let i = 0; i < b64.length; i++) {
+        xor += String.fromCharCode(b64.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return Buffer.from(xor).toString('hex');
+}
 
 // ==========================================
 // FUNGSI UNTUK MENGHASILKAN ERROR ACAK
@@ -88,12 +93,9 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == GATEKEEPER EXPLICIT LOGIC == \\
-    // Memeriksa kombinasi User-Agent dan keberadaan Header Roblox
     const isRoblox = agent.includes("Roblox") && (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
 
     if (!isRoblox) {
-        // Status code acak + Teks Banned
         return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
     }
 
@@ -101,7 +103,6 @@ module.exports = async function(req, res) {
         return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
     }
 
-    // == PARSING URL (STEP, ID, KEY) == \\
     const urlParts = req.url.split('?');
     const queryString = urlParts[1] || "";
     const params = queryString.split('.');
@@ -115,35 +116,29 @@ module.exports = async function(req, res) {
     const currentPath = urlParts[0];
 
     try {
-        // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
 
-            // == CHECK APAKAH SESI ADA == \\
             if (session === undefined) {
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
-            // == IP LOCK CHECK == \\
             if (session.ownerIP !== ip) {
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
-            // == VALIDASI URUTAN STEP RANDOM (1-300) == \\
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
-            //  == ONE-TIME USE == \\
             if (session.used === true) {
                 blacklist[ip] = true;
                 await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
-            // == EXPIRY CHECK == \\
             const sessionDuration = now - session.startTime;
             const keyDuration = now - session.keyCreatedAt;
             if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
@@ -151,7 +146,6 @@ module.exports = async function(req, res) {
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
-            // == KEY & TIMING HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
@@ -167,9 +161,7 @@ module.exports = async function(req, res) {
             session.used = true;
         }
         
-        // == INISIALISASI SESI PERTAMA == \\
         if (currentStep === 0) {
-            // == GENERATE ID 4 BERBASIS IP == \\
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
@@ -177,7 +169,6 @@ module.exports = async function(req, res) {
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            // == GENERATE STEP RANDOM UNIK (1-300) == \\
             let sequence = [];
             while(sequence.length < SETTINGS.TOTAL_LAYERS) {
                 let r = Math.floor(Math.random() * 300) + 1;
@@ -199,18 +190,14 @@ module.exports = async function(req, res) {
             const firstStep = sequence[0];
             const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
             
-            // RESPON SATU BARIS SESUAI PERMINTAAN
             const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
-            
             return res.status(200).send(luaScript);
         }
 
-        // == ROTASI GHOST ID == \\
         if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
             const session = sessions[id];
             session.currentIndex++; 
             
-            // == GENERATE ID BARU 4 KARAKTER == \\
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
@@ -234,21 +221,29 @@ module.exports = async function(req, res) {
             delete sessions[id]; 
 
             const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
-            
-            // RESPON SATU BARIS SESUAI PERMINTAAN
             const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
-
             return res.status(200).send(luaScript);
         }
 
-        // == FINAL KIRIM SCRIPT == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer acak.");
-            delete sessions[id];
-            return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
+            https.get(SETTINGS.GITHUB_RAW, (githubRes) => {
+                let githubData = '';
+                githubRes.on('data', (chunk) => { githubData += chunk; });
+                githubRes.on('end', async () => {
+                    const dynamicKey = Math.random().toString(36).substring(2, 12);
+                    const encrypted = megumiEncrypt(githubData, dynamicKey);
+                    
+                    await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus proxy & encrypted github.");
+                    delete sessions[id];
+
+                    const finalLoader = "local h='" + encrypted + "' local k='" + dynamicKey + "' local function d(t,key) local r='' for i=1,#t,2 do local b=tonumber(t:sub(i,i+1),16) r=r..string.char(bit32.bxor(b,key:byte(((i/2)%#key)+1))) end return game:GetService('HttpService'):DecodeBase64(r) end loadstring(d(h,k))()";
+                    return res.status(200).send(finalLoader);
+                });
+            });
         }
 
     } catch (err) {
         return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
     }
 };
+
