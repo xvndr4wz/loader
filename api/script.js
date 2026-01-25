@@ -12,7 +12,7 @@ const SETTINGS = {
     KEY_LIFETIME: 5000,   
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("Ndraawz Security: Auto-Random Query Active!")
+        print("Ndraawz Security: 100% Always Random Logic Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -23,15 +23,11 @@ const SETTINGS = {
 let sessions = {}; 
 let blacklist = {}; 
 
-// ==========================================
-// UTILITY FUNCTIONS
-// ==========================================
 function getRandomError() {
     const errorCodes = [400, 401, 403, 404, 500, 502, 503];
     return errorCodes[Math.floor(Math.random() * errorCodes.length)];
 }
 
-// Fungsi untuk membuat ID acak seperti Xeno (Huruf, Angka, Simbol)
 function generateComplexID(length) {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~_-";
     let result = "";
@@ -79,7 +75,12 @@ module.exports = async function(req, res) {
     const agent = req.headers['user-agent'] || "";
     const host = req.headers.host;
 
-    // == PARSING URL (TETAP PAKAI ?) == \\
+    // MATIKAN CACHE AGAR LINK SELALU BARU SAAT REFRESH
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    // == PARSING URL == \\
     const urlParts = req.url.split('?');
     const currentPath = urlParts[0];
     const queryString = urlParts[1] || "";
@@ -90,25 +91,27 @@ module.exports = async function(req, res) {
     const key = params[2];  
     const currentStep = parseInt(step) || 0;
 
-    // == LOGIKA AUTO-RANDOM UNTUK BROWSER (CHROME) == \\
     const isRoblox = agent.includes("Roblox") && (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
 
+    // == LOGIKA SELALU ACAK DI BROWSER == \\
     if (!isRoblox && currentStep === 0) {
-        // Jika dibuka di browser, buat ID & Key palsu hanya untuk tampilan URL
-        const fakeStep = Math.floor(Math.random() * 500) + 100;
-        const fakeID = generateComplexID(8);
-        const fakeKey = generateComplexID(15);
+        // Generate kode unik secara real-time
+        const randomStep = Math.floor(Math.random() * 900) + 100;
+        const randomID = generateComplexID(10);
+        const randomKey = generateComplexID(16);
         
-        // Redirect ke link dengan query acak
-        const randomUrl = `https://${host}${currentPath}?${fakeStep}.${fakeID}.${fakeKey}`;
-        res.writeHead(302, { 'Location': randomUrl });
+        // Link yang akan muncul di address bar Chrome
+        const randomUrl = `https://${host}${currentPath}?${randomStep}.${randomID}.${randomKey}`;
+        
+        // Gunakan 307 (Temporary Redirect) agar browser tidak menyimpan link ini secara permanen
+        res.writeHead(307, { 'Location': randomUrl });
         return res.end();
     }
 
-    // == GATEKEEPER == \\
+    // == GATEKEEPER ROBLOX == \\
     if (!isRoblox) {
         res.setHeader('Content-Type', 'text/plain');
-        return res.status(200).send("SECURITY: ACCESS DENIED (ROBLOX ONLY)");
+        return res.status(200).send("Ndraawz Security: Banned Device (Chrome Access Logged).");
     }
 
     if (blacklist[ip] === true) {
@@ -116,31 +119,26 @@ module.exports = async function(req, res) {
     }
 
     try {
-        // == HANDSHAKE VALIDATION == \\
+        // == HANDSHAKE LOGIC (SAMA SEPERTI ASLI) == \\
         if (currentStep > 0) {
             const session = sessions[id];
-
             if (session === undefined || session.ownerIP !== ip) {
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
-
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep || session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
-
             if (session.used === true) {
                 blacklist[ip] = true;
                 await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`");
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
-
             if (now - session.startTime > SETTINGS.SESSION_EXPIRY || now - session.keyCreatedAt > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
-
             if (now - session.lastTime < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
@@ -150,11 +148,9 @@ module.exports = async function(req, res) {
             session.used = true;
         }
         
-        // == INITIALIZE OR ROTATION == \\
+        // == INITIALIZE / NEXT LAYER == \\
         if (currentStep === 0 || (sessions[id] && sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1)) {
-            
             let sequence, currentIndex, startTime;
-
             if (currentStep === 0) {
                 sequence = [];
                 while(sequence.length < SETTINGS.TOTAL_LAYERS) {
@@ -187,15 +183,15 @@ module.exports = async function(req, res) {
             };
 
             const nextStepNumber = sequence[currentIndex];
-            const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
+            const nextUrl = `https://${host}${currentPath}?${nextStepNumber}.${newSessionID}.${nextKey}`;
             
             res.setHeader('Content-Type', 'text/plain');
-            return res.status(200).send("task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()");
+            return res.status(200).send(`task.wait(${waitTime / 1000}) loadstring(game:HttpGet("${nextUrl}"))()`);
         }
 
-        // == FINAL KIRIM SCRIPT == \\
+        // == FINAL == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer acak.");
+            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus security.");
             delete sessions[id];
             res.setHeader('Content-Type', 'text/plain');
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
@@ -205,4 +201,3 @@ module.exports = async function(req, res) {
         return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
     }
 };
-
