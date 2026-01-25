@@ -1,18 +1,18 @@
 const https = require('https');
 
 // ============================
-// SETTINGS
+// SETTINGS (SAMA SEPERTI ASLI)
 // ============================
 const SETTINGS = {
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 112, 
-    MAX_WAIT: 119, 
-    SESSION_EXPIRY: 10000, 
-    KEY_LIFETIME: 5000,   
+    MIN_WAIT: 112,
+    MAX_WAIT: 119,
+    SESSION_EXPIRY: 10000,
+    KEY_LIFETIME: 5000,
     REAL_SCRIPT: `
         -- SCRIPT ASLI ANDA
-        print("Ndraawz Security: 100% Always Random Logic Active!")
+        print("Ndraawz Security: Live Path & Logic Active!")
         local p = game.Players.LocalPlayer
         if p.Character and p.Character:FindFirstChild("Humanoid") then
             p.Character.Humanoid.Health -= 50
@@ -20,9 +20,15 @@ const SETTINGS = {
     `
 };
 
+// ==========================================
+// MEMORY STORAGE
+// ==========================================
 let sessions = {}; 
 let blacklist = {}; 
 
+// ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
 function getRandomError() {
     const errorCodes = [400, 401, 403, 404, 500, 502, 503];
     return errorCodes[Math.floor(Math.random() * errorCodes.length)];
@@ -75,11 +81,6 @@ module.exports = async function(req, res) {
     const agent = req.headers['user-agent'] || "";
     const host = req.headers.host;
 
-    // MATIKAN CACHE AGAR LINK SELALU BARU SAAT REFRESH
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-
     // == PARSING URL == \\
     const urlParts = req.url.split('?');
     const currentPath = urlParts[0];
@@ -91,48 +92,66 @@ module.exports = async function(req, res) {
     const key = params[2];  
     const currentStep = parseInt(step) || 0;
 
+    // == CHECK DEVICE == \\
     const isRoblox = agent.includes("Roblox") && (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
 
-    // == LOGIKA SELALU ACAK DI BROWSER == \\
+    // == LOGIKA LIVE RANDOMIZER UNTUK CHROME == \\
     if (!isRoblox && currentStep === 0) {
-        // Generate kode unik secara real-time
-        const randomStep = Math.floor(Math.random() * 900) + 100;
-        const randomID = generateComplexID(10);
-        const randomKey = generateComplexID(16);
-        
-        // Link yang akan muncul di address bar Chrome
-        const randomUrl = `https://${host}${currentPath}?${randomStep}.${randomID}.${randomKey}`;
-        
-        // Gunakan 307 (Temporary Redirect) agar browser tidak menyimpan link ini secara permanen
-        res.writeHead(307, { 'Location': randomUrl });
-        return res.end();
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Ndraawz Security - Encrypting</title>
+                <style>
+                    body { background: #000; color: #ff0000; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+                    .box { border: 2px solid #ff0000; padding: 40px; text-align: center; box-shadow: 0 0 20px #ff0000; }
+                    .glitch { font-size: 24px; font-weight: bold; text-transform: uppercase; letter-spacing: 5px; animation: pulse 1s infinite; }
+                    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+                </style>
+            </head>
+            <body>
+                <div class="box">
+                    <div class="glitch">Accessing Secure Path...</div>
+                    <p style="color: #555;">IP: ${ip}</p>
+                </div>
+                <script>
+                    function gen(l) {
+                        let c = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~_-";
+                        let r = ""; for(let i=0; i<l; i++) r += c.charAt(Math.floor(Math.random()*c.length));
+                        return r;
+                    }
+                    // MENGUBAH KOLOM LINK SETIAP 500MS
+                    setInterval(() => {
+                        const s = Math.floor(Math.random() * 900) + 100;
+                        const i = gen(8);
+                        const k = gen(15);
+                        window.history.replaceState(null, "", window.location.pathname + "?" + s + "." + i + "." + k);
+                    }, 500);
+                </script>
+            </body>
+            </html>
+        `);
     }
 
-    // == GATEKEEPER ROBLOX == \\
-    if (!isRoblox) {
-        res.setHeader('Content-Type', 'text/plain');
-        return res.status(200).send("Ndraawz Security: Banned Device (Chrome Access Logged).");
-    }
-
-    if (blacklist[ip] === true) {
-        return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
-    }
+    // == SECURITY GATEKEEPER == \\
+    if (!isRoblox) return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
+    if (blacklist[ip] === true) return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
 
     try {
-        // == HANDSHAKE LOGIC (SAMA SEPERTI ASLI) == \\
+        // == HANDSHAKE VALIDATION (LOGIKA ASLI KAMU) == \\
         if (currentStep > 0) {
             const session = sessions[id];
             if (session === undefined || session.ownerIP !== ip) {
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
-            const expectedStep = session.stepSequence[session.currentIndex];
-            if (currentStep !== expectedStep || session.nextKey !== key) {
+            if (currentStep !== session.stepSequence[session.currentIndex] || session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`");
+                await sendWebhookLog("🚫 **REPLAY ATTACK**\\n**IP:** \`" + ip + "\` mencoba akses ulang link mati.");
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             if (now - session.startTime > SETTINGS.SESSION_EXPIRY || now - session.keyCreatedAt > SETTINGS.KEY_LIFETIME) {
@@ -142,15 +161,16 @@ module.exports = async function(req, res) {
             if (now - session.lastTime < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation.");
+                await sendWebhookLog("🚫 **DETECT BOT**\\n**IP:** \`" + ip + "\` timing violation.");
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             session.used = true;
         }
         
-        // == INITIALIZE / NEXT LAYER == \\
+        // == INITIALIZE OR NEXT STEP == \\
         if (currentStep === 0 || (sessions[id] && sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1)) {
             let sequence, currentIndex, startTime;
+
             if (currentStep === 0) {
                 sequence = [];
                 while(sequence.length < SETTINGS.TOTAL_LAYERS) {
@@ -182,16 +202,14 @@ module.exports = async function(req, res) {
                 used: false 
             };
 
-            const nextStepNumber = sequence[currentIndex];
-            const nextUrl = `https://${host}${currentPath}?${nextStepNumber}.${newSessionID}.${nextKey}`;
-            
+            const nextUrl = "https://" + host + currentPath + "?" + sequence[currentIndex] + "." + newSessionID + "." + nextKey;
             res.setHeader('Content-Type', 'text/plain');
-            return res.status(200).send(`task.wait(${waitTime / 1000}) loadstring(game:HttpGet("${nextUrl}"))()`);
+            return res.status(200).send("task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()");
         }
 
-        // == FINAL == \\
+        // == FINAL SCRIPT == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus security.");
+            await sendWebhookLog("✅ **SUCCESS**\\n**IP:** \`" + ip + "\` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
             delete sessions[id];
             res.setHeader('Content-Type', 'text/plain');
             return res.status(200).send(SETTINGS.REAL_SCRIPT.trim());
