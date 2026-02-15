@@ -6,31 +6,31 @@ const https = require('https');
 const SETTINGS = {
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 112, 
-    MAX_WAIT: 119, 
-    SESSION_EXPIRY: 10000, 
-    KEY_LIFETIME: 5000,   
-    // Link Sumber Data
+    MIN_WAIT: 112,
+    MAX_WAIT: 119,
+    SESSION_EXPIRY: 10000,
+    KEY_LIFETIME: 5000,
+    // URL SUMBER RAW
     PLAIN_TEXT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/api/uajja",
     REAL_SCRIPT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/SLFB.lua"
 };
 
 // ==========================================
-// MEMORY STORAGE & FETCH HELPER
+// MEMORY STORAGE
 // ==========================================
 let sessions = {}; 
 let blacklist = {}; 
 
-/**
- * Fungsi untuk mengambil konten dari URL (Plain Text)
- */
-function fetchGitHub(url) {
+// ==========================================
+// HELPER: FETCH DARI GITHUB
+// ==========================================
+function fetchRaw(url) {
     return new Promise((resolve, reject) => {
         https.get(url, (res) => {
             let data = '';
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => resolve(data.trim()));
-        }).on('error', (err) => reject(err));
+        }).on('error', (err) => resolve(null));
     });
 }
 
@@ -70,9 +70,10 @@ async function sendWebhookLog(message) {
 
     return new Promise(function(resolve) {
         const req = https.request(options, function(res) {
-            res.on('end', () => resolve(true));
+            res.on('data', function(chunk) {});
+            res.on('end', function() { resolve(true); });
         });
-        req.on('error', () => resolve(false));
+        req.on('error', function() { resolve(false); });
         req.write(data);
         req.end();
     });
@@ -88,21 +89,13 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == GATEKEEPER == \\
+    // == GATEKEEPER EXPLICIT LOGIC == \\
     const isRoblox = agent.includes("Roblox") && (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
 
-    if (!isRoblox) {
-        // Mengambil plain text response dari GitHub jika akses ditolak
-        try {
-            const plainResp = await fetchGitHub(SETTINGS.PLAIN_TEXT_URL);
-            return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
-        } catch {
-            return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
-        }
-    }
-
-    if (blacklist[ip] === true) {
-        return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
+    if (!isRoblox || blacklist[ip] === true) {
+        // AMBIL PLAIN TEXT DARI GITHUB UNTUK RESPON ERROR
+        const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
+        return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
     }
 
     const urlParts = req.url.split('?');
@@ -118,12 +111,12 @@ module.exports = async function(req, res) {
     const currentPath = urlParts[0];
 
     try {
-        // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
 
             if (session === undefined || session.ownerIP !== ip) {
-                return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
+                const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
+                return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
             }
 
             const expectedStep = session.stepSequence[session.currentIndex];
@@ -160,7 +153,7 @@ module.exports = async function(req, res) {
             session.used = true;
         }
         
-        // == INITIAL STEP (0) == \\
+        // == INITIALIZATION (STEP 0) == \\
         if (currentStep === 0) {
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
@@ -227,15 +220,15 @@ module.exports = async function(req, res) {
             return res.status(200).send(luaScript);
         }
 
-        // == FINAL STEP: SEND REAL SCRIPT FROM GITHUB == \\
+        // == FINAL: KIRIM SCRIPT DARI GITHUB == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            try {
-                const finalScript = await fetchGitHub(SETTINGS.REAL_SCRIPT_URL);
+            const finalScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
+            if (finalScript) {
                 await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
                 delete sessions[id];
                 return res.status(200).send(finalScript);
-            } catch (err) {
-                return res.status(500).send("-- ERROR FETCHING SCRIPT FROM GITHUB --");
+            } else {
+                return res.status(500).send("-- ERROR: FAILED TO FETCH SCRIPT FROM GITHUB --");
             }
         }
 
