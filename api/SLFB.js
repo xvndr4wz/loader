@@ -6,11 +6,11 @@ const https = require('https');
 const SETTINGS = {
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 112,
-    MAX_WAIT: 119,
-    SESSION_EXPIRY: 10000,
-    KEY_LIFETIME: 5000,
-    // URL SUMBER RAW
+    MIN_WAIT: 112, 
+    MAX_WAIT: 119, 
+    SESSION_EXPIRY: 10000, 
+    KEY_LIFETIME: 5000,   
+    // URL SUMBER RAW GITHUB
     PLAIN_TEXT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/api/uajja",
     REAL_SCRIPT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/SLFB.lua"
 };
@@ -22,23 +22,29 @@ let sessions = {};
 let blacklist = {}; 
 
 // ==========================================
-// HELPER: FETCH DARI GITHUB
+// HELPER: FETCH DATA DARI GITHUB
 // ==========================================
 function fetchRaw(url) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         https.get(url, (res) => {
             let data = '';
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => resolve(data.trim()));
-        }).on('error', (err) => resolve(null));
+        }).on('error', () => resolve(null));
     });
 }
 
+// ==========================================
+// FUNGSI UNTUK MENGHASILKAN ERROR ACAK
+// ==========================================
 function getRandomError() {
     const errorCodes = [400, 401, 403, 404, 500, 502, 503];
     return errorCodes[Math.floor(Math.random() * errorCodes.length)];
 }
 
+// ==========================================
+//  FUNGSI WEBHOOK EMBED
+// ==========================================
 function getWIBTime() {
     return new Intl.DateTimeFormat('id-ID', {
         timeZone: 'Asia/Jakarta',
@@ -89,15 +95,19 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == GATEKEEPER EXPLICIT LOGIC == \\
-    const isRoblox = agent.includes("Roblox") && (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
+    // == GATEKEEPER EXPLICIT LOGIC (DIPERKETAT) == \\
+    const isRoblox = agent.includes("Roblox") && 
+                     (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
+    
+    // Blokir Discord Bot agar tidak memicu fetch/log
+    const isDiscord = agent.includes("Discordbot");
 
-    if (!isRoblox || blacklist[ip] === true) {
-        // AMBIL PLAIN TEXT DARI GITHUB UNTUK RESPON ERROR
+    if (!isRoblox || isDiscord || blacklist[ip] === true) {
         const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
         return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
     }
 
+    // == PARSING URL (STEP, ID, KEY) == \\
     const urlParts = req.url.split('?');
     const queryString = urlParts[1] || "";
     const params = queryString.split('.');
@@ -111,26 +121,31 @@ module.exports = async function(req, res) {
     const currentPath = urlParts[0];
 
     try {
+        // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
 
+            // == CHECK APAKAH SESI ADA == \\
             if (session === undefined || session.ownerIP !== ip) {
                 const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
                 return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
             }
 
+            // == VALIDASI URUTAN STEP RANDOM (1-300) == \\
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
+            //  == ONE-TIME USE == \\
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`");
+                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
+            // == EXPIRY CHECK == \\
             const sessionDuration = now - session.startTime;
             const keyDuration = now - session.keyCreatedAt;
             if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
@@ -138,6 +153,7 @@ module.exports = async function(req, res) {
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
 
+            // == KEY & TIMING HANDSHAKE == \\
             if (session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
@@ -147,13 +163,13 @@ module.exports = async function(req, res) {
             if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation.");
+                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (No Tolerance).");
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             session.used = true;
         }
         
-        // == INITIALIZATION (STEP 0) == \\
+        // == INISIALISASI SESI PERTAMA == \\
         if (currentStep === 0) {
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
@@ -182,12 +198,12 @@ module.exports = async function(req, res) {
 
             const firstStep = sequence[0];
             const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
-            const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             
+            const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             return res.status(200).send(luaScript);
         }
 
-        // == LAYER ROTATION == \\
+        // == ROTASI GHOST ID == \\
         if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
             const session = sessions[id];
             session.currentIndex++; 
@@ -220,19 +236,20 @@ module.exports = async function(req, res) {
             return res.status(200).send(luaScript);
         }
 
-        // == FINAL: KIRIM SCRIPT DARI GITHUB == \\
+        // == FINAL KIRIM SCRIPT DARI GITHUB == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
             const finalScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
             if (finalScript) {
-                await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
+                await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer acak.");
                 delete sessions[id];
                 return res.status(200).send(finalScript);
             } else {
-                return res.status(500).send("-- ERROR: FAILED TO FETCH SCRIPT FROM GITHUB --");
+                return res.status(500).send("-- ERROR: GITHUB DATA EMPTY OR FAILED --");
             }
         }
 
     } catch (err) {
-        return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
+        const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
+        return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
     }
 };
