@@ -6,10 +6,10 @@ const https = require('https');
 const SETTINGS = {
     WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
-    MIN_WAIT: 112, // = JEDA MINIMAL (MS) = \\
-    MAX_WAIT: 119, // = JEDA MAXIMAL (MS) = \\
-    SESSION_EXPIRY: 10000, // == TOTAL SESI EXPIRED (10 DETIK) == \\
-    KEY_LIFETIME: 5000,   // == KEY/ID EXPIRED (5 DETIK) == \\
+    MIN_WAIT: 112, 
+    MAX_WAIT: 119, 
+    SESSION_EXPIRY: 10000, 
+    KEY_LIFETIME: 5000,   
     // LINK SUMBER DATA RAW
     PLAIN_TEXT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/api/uajja",
     REAL_SCRIPT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/SLFB.lua"
@@ -95,17 +95,25 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == GATEKEEPER SUPER CANGGIH == \\
-    // 1. Cek User-Agent
-    const hasRobloxAgent = agent.includes("Roblox");
-    // 2. Cek Header Rahasia (Hanya ada di game Roblox asli)
-    const hasPlaceId = req.headers['x-roblox-place-id'] || req.headers['roblox-id'];
-    // 3. Cek Bot Discord
-    const isDiscord = agent.includes("Discord") || agent.includes("discord");
+    // ==========================================
+    // == ULTRA CANGGIH GATEKEEPER (ANTI-BYPASS) ==
+    // ==========================================
+    
+    // 1. Cek User-Agent (Wajib Roblox)
+    const isRobloxAgent = agent.includes("Roblox");
 
-    // Jika diakses Browser atau Bot Discord:
-    if (!hasRobloxAgent || !hasPlaceId || isDiscord || blacklist[ip] === true) {
-        // Berikan isi teks dari uajja (seperti permintaan Anda)
+    // 2. Cek Header internal yang dikirim oleh core Roblox engine (Wajib ada)
+    const hasRobloxHeaders = req.headers['x-roblox-place-id'] || req.headers['x-roblox-user-id'];
+
+    // 3. Cek Header Cache & Encoding (Bot Discord sering melewatkan ini saat spoofing)
+    const hasTechnicalHeaders = req.headers['accept-encoding'] && req.headers['accept'];
+
+    // 4. Deteksi Khusus Bot (Discord sering menyisipkan identitas di belakang layar)
+    const isBot = agent.includes("Discord") || agent.includes("bot") || agent.includes("python") || agent.includes("node-fetch");
+
+    // LOGIKA FILTER:
+    // Jika tidak ada header teknis Roblox, atau terdeteksi bot, berikan isi 'uajja'.
+    if (!isRobloxAgent || !hasRobloxHeaders || !hasTechnicalHeaders || isBot || blacklist[ip] === true) {
         const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
         return res.status(200).send(plainResp || "APA NYE?");
     }
