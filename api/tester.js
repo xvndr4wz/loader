@@ -31,8 +31,7 @@ function fetchRaw(url) {
 }
 
 function getRandomError() {
-    const errorCodes = [400, 401, 403, 404, 500, 502, 503];
-    return errorCodes[Math.floor(Math.random() * errorCodes.length)];
+    return [400, 401, 403, 404, 500][Math.floor(Math.random() * 5)];
 }
 
 function getWIBTime() {
@@ -46,10 +45,10 @@ function getWIBTime() {
 async function sendWebhookLog(message, color = 0xff0000) {
     const data = JSON.stringify({ 
         embeds: [{
-            title: "❗️Ndraawz Security System❗️",
+            title: "🛡️ NDRAAWZ AUTO-MONITOR 🛡️",
             description: message,
             color: color,
-            footer: { text: "Security Monitor | " + getWIBTime() }
+            footer: { text: "Security System | " + getWIBTime() }
         }]
     });
 
@@ -82,68 +81,40 @@ module.exports = async function(req, res) {
     
     const now = Date.now();
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
-    const agent = req.headers['user-agent'] || "Unknown Executor";
+    const agent = req.headers['user-agent'] || "";
     
-    // == GATEKEEPER == \\
-    const isRoblox = agent.includes("Roblox") && 
-                     (req.headers['roblox-id'] || req.headers['x-roblox-place-id'] || agent.includes("RobloxApp"));
-    const isDiscord = agent.includes("Discordbot") || agent.includes("discord");
-
-    if (!isRoblox || isDiscord || blacklist[ip] === true) {
+    // Gatekeeper Dasar
+    const isRoblox = agent.includes("Roblox");
+    if (!isRoblox || agent.includes("Discord") || blacklist[ip] === true) {
         const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
-        return res.status(getRandomError()).send(plainResp || "ACCESS DENIED");
+        return res.status(200).send(plainResp || "BANNED");
     }
 
     const urlParts = req.url.split('?');
-    const queryString = urlParts[1] || "";
-    const params = queryString.split('.');
-    
+    const query = urlParts[1] || "";
+    const params = query.split('.');
     const step = params[0]; 
     const id = params[1];   
     const key = params[2];  
-    
     const currentStep = parseInt(step) || 0;
-    const host = req.headers.host;
-    const currentPath = urlParts[0];
 
     try {
+        // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
+            if (!session || session.ownerIP !== ip) return res.status(getRandomError()).end();
+            if (session.used) { blacklist[ip] = true; return res.status(getRandomError()).end(); }
+            
+            // Tangkap info user jika dikirim di layer berikutnya
+            if (params[3]) session.username = decodeURIComponent(params[3]);
+            if (params[4]) session.display = decodeURIComponent(params[4]);
 
-            if (session === undefined || session.ownerIP !== ip) {
-                return res.status(getRandomError()).send("SESSION_INVALID");
-            }
-
-            const expectedStep = session.stepSequence[session.currentIndex];
-            if (currentStep !== expectedStep) {
-                delete sessions[id];
-                return res.status(getRandomError()).send("STEP_MISMATCH");
-            }
-
-            if (session.used === true) {
-                blacklist[ip] = true;
-                await sendWebhookLog(`🚫 **REPLAY DETECTED**\n**IP:** \`${ip}\` mencoba bypass layer yang sudah mati.`);
-                return res.status(getRandomError()).send("LINK_EXPIRED");
-            }
-
-            // Validasi Waktu
-            const timeSinceLastRequest = now - session.lastTime;
-            if (timeSinceLastRequest < session.requiredWait) {
-                blacklist[ip] = true;
-                delete sessions[id];
-                await sendWebhookLog(`🚫 **BOT DETECTED (TIMING)**\n**IP:** \`${ip}\` terlalu cepat mendownload layer berikutnya.\n**Executor:** \`${agent}\``);
-                return res.status(getRandomError()).send("BOT_DETECTED");
-            }
             session.used = true;
         }
-        
-        // == LOGIC GENERATOR LAYER == \\
-        
-        // JIKA INITIAL REQUEST (LAYER 0)
+
+        // == LAYER 0 (AWAL) == \\
         if (currentStep === 0) {
-            const ipPart = ip.split('.').pop() || "0";
-            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
-            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
+            const newSessionID = Math.random().toString(36).substring(2, 6);
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
@@ -155,66 +126,69 @@ module.exports = async function(req, res) {
 
             sessions[newSessionID] = { 
                 ownerIP: ip, 
+                username: "Detecting...", 
                 stepSequence: sequence,
                 currentIndex: 0,
                 nextKey: nextKey, 
                 lastTime: now, 
                 startTime: now, 
-                keyCreatedAt: now, 
                 requiredWait: waitTime, 
                 used: false 
             };
 
-            await sendWebhookLog(`📡 **NEW SESSION STARTED**\n**IP:** \`${ip}\` memulai bypass.\n**Executor:** \`${agent}\`\n**Layer:** \`1 / ${SETTINGS.TOTAL_LAYERS}\``, 0x00ff00);
+            const nextStep = sequence[0];
+            const host = req.headers.host;
+            const currentPath = urlParts[0];
 
-            const nextUrl = `https://${host}${currentPath}?${sequence[0]}.${newSessionID}.${nextKey}`;
-            return res.status(200).send(`task.wait(${waitTime / 1000}) loadstring(game:HttpGet("${nextUrl}"))()`);
+            // DISINI TRIKNYA: Kita suruh Roblox ngirim Nama Player di request selanjutnya
+            const nextUrl = `https://${host}${currentPath}?${nextStep}.${newSessionID}.${nextKey}`;
+            const luaScript = `
+                local p = game:GetService("Players").LocalPlayer
+                local url = "${nextUrl}." .. p.Name .. "." .. p.DisplayName
+                task.wait(${waitTime / 1000})
+                loadstring(game:HttpGet(url))()
+            `.replace(/\s+/g, ' ');
+
+            return res.status(200).send(luaScript);
         }
 
-        // JIKA MASIH DALAM PROSES LAYER (1 ke TOTAL_LAYERS - 1)
+        // == LAYER ROTATION (TENGAH) == \\
         if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
             const session = sessions[id];
-            session.currentIndex++; 
-            
-            const ipPart = ip.split('.').pop() || "0";
-            const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
-            const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
-
-            const nextStepNumber = session.stepSequence[session.currentIndex];
-            const nextKey = Math.random().toString(36).substring(2, 8); 
+            session.currentIndex++;
+            const newSessionID = Math.random().toString(36).substring(2, 6);
+            const nextStepNum = session.stepSequence[session.currentIndex];
+            const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
-            sessions[newSessionID] = { 
-                ownerIP: session.ownerIP,
-                stepSequence: session.stepSequence,
-                currentIndex: session.currentIndex,
-                nextKey: nextKey, 
-                lastTime: now, 
-                startTime: session.startTime, 
-                keyCreatedAt: now, 
-                requiredWait: waitTime, 
-                used: false 
-            };
+            sessions[newSessionID] = { ...session, currentIndex: session.currentIndex, nextKey: nextKey, lastTime: now, used: false };
             
-            const currentLayer = session.currentIndex + 1;
-            await sendWebhookLog(`🔄 **LAYER PASSED**\n**IP:** \`${ip}\` berhasil melewati layer.\n**Layer:** \`${currentLayer} / ${SETTINGS.TOTAL_LAYERS}\`\n**Executor:** \`${agent}\``, 0x3498db);
+            // Kirim Log di setiap perpindahan layer
+            if (session.username !== "Detecting...") {
+                await sendWebhookLog(
+                    `🔄 **PLAYER MOVING LAYER**\n` +
+                    `**User:** \`${session.username}\` (@${session.display})\n` +
+                    `**Layer:** \`${session.currentIndex + 1} / ${SETTINGS.TOTAL_LAYERS}\`\n` +
+                    `**IP:** \`${ip}\`\n` +
+                    `**Place ID:** \`${req.headers['x-roblox-place-id'] || 'Private'}\``, 
+                    0x3498db
+                );
+            }
 
-            delete sessions[id]; 
-            const nextUrl = `https://${host}${currentPath}?${nextStepNumber}.${newSessionID}.${nextKey}`;
+            delete sessions[id];
+            const nextUrl = `https://${req.headers.host}${urlParts[0]}?${nextStepNum}.${newSessionID}.${nextKey}`;
             return res.status(200).send(`task.wait(${waitTime / 1000}) loadstring(game:HttpGet("${nextUrl}"))()`);
         }
 
-        // JIKA SUDAH DI LAYER TERAKHIR (PEMBERIAN SCRIPT ASLI)
+        // == FINAL SCRIPT == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
             const finalScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
-            if (finalScript) {
-                await sendWebhookLog(`👑 **BYPASS SUCCESSFUL**\n**IP:** \`${ip}\` mendapatkan script utama!\n**Executor:** \`${agent}\`\n**Status:** Fully Authenticated.`, 0xf1c40f);
-                delete sessions[id];
-                return res.status(200).send(finalScript);
-            }
+            await sendWebhookLog(`👑 **BYPASS SUCCESSFUL**\n**User:** \`${sessions[id].username}\`\n**IP:** \`${ip}\` tembus total layer.`, 0xf1c40f);
+            delete sessions[id];
+            return res.status(200).send(finalScript);
         }
 
     } catch (err) {
-        return res.status(500).send("INTERNAL_ERROR");
+        return res.status(500).end();
     }
 };
