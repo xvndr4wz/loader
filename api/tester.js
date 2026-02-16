@@ -10,7 +10,7 @@ const SETTINGS = {
     MAX_WAIT: 119, 
     SESSION_EXPIRY: 10000, 
     KEY_LIFETIME: 5000,   
-    // LINK SUMBER DATA RAW
+    // URL SUMBER RAW GITHUB
     PLAIN_TEXT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/api/uajja",
     REAL_SCRIPT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/SLFB.lua"
 };
@@ -22,7 +22,7 @@ let sessions = {};
 let blacklist = {}; 
 
 // ==========================================
-// HELPER: FETCH DARI GITHUB
+// HELPER: FETCH DATA DARI GITHUB
 // ==========================================
 function fetchRaw(url) {
     return new Promise((resolve) => {
@@ -95,27 +95,15 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // ==========================================
-    // == ULTRA CANGGIH GATEKEEPER (ANTI-BYPASS) ==
-    // ==========================================
+    // == ULTRA GATEKEEPER (MURNI ERROR UNTUK BOT) == \\
+    // Hanya Roblox asli yang mengirim header 'x-roblox-place-id'
+    const isRoblox = agent.includes("Roblox") && 
+                     (req.headers['roblox-id'] || req.headers['x-roblox-place-id']);
     
-    // 1. Cek User-Agent (Wajib Roblox)
-    const isRobloxAgent = agent.includes("Roblox");
-
-    // 2. Cek Header internal yang dikirim oleh core Roblox engine (Wajib ada)
-    const hasRobloxHeaders = req.headers['x-roblox-place-id'] || req.headers['x-roblox-user-id'];
-
-    // 3. Cek Header Cache & Encoding (Bot Discord sering melewatkan ini saat spoofing)
-    const hasTechnicalHeaders = req.headers['accept-encoding'] && req.headers['accept'];
-
-    // 4. Deteksi Khusus Bot (Discord sering menyisipkan identitas di belakang layar)
-    const isBot = agent.includes("Discord") || agent.includes("bot") || agent.includes("python") || agent.includes("node-fetch");
-
-    // LOGIKA FILTER:
-    // Jika tidak ada header teknis Roblox, atau terdeteksi bot, berikan isi 'uajja'.
-    if (!isRobloxAgent || !hasRobloxHeaders || !hasTechnicalHeaders || isBot || blacklist[ip] === true) {
-        const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
-        return res.status(200).send(plainResp || "APA NYE?");
+    // Blokir Bot/Browser/Discord
+    if (!isRoblox || agent.includes("Discord") || blacklist[ip] === true) {
+        // .end() memastikan tidak ada body text yang terkirim sama sekali
+        return res.status(getRandomError()).end(); 
     }
 
     // == PARSING URL (STEP, ID, KEY) == \\
@@ -137,8 +125,7 @@ module.exports = async function(req, res) {
             const session = sessions[id];
 
             if (session === undefined || session.ownerIP !== ip) {
-                const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
-                return res.status(200).send(plainResp || "APA NYE?");
+                return res.status(getRandomError()).end();
             }
 
             const expectedStep = session.stepSequence[session.currentIndex];
@@ -149,12 +136,13 @@ module.exports = async function(req, res) {
 
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "`");
+                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses link mati.");
                 return res.status(getRandomError()).end();
             }
 
             const sessionDuration = now - session.startTime;
-            if (sessionDuration > SETTINGS.SESSION_EXPIRY) {
+            const keyDuration = now - session.keyCreatedAt;
+            if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
                 delete sessions[id];
                 return res.status(getRandomError()).end();
             }
@@ -203,8 +191,8 @@ module.exports = async function(req, res) {
 
             const firstStep = sequence[0];
             const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
-            
             const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
+            
             return res.status(200).send(luaScript);
         }
 
@@ -241,12 +229,16 @@ module.exports = async function(req, res) {
             return res.status(200).send(luaScript);
         }
 
-        // == FINAL KIRIM SCRIPT == \\
+        // == FINAL KIRIM SCRIPT DARI GITHUB == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
             const finalScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
-            await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
-            delete sessions[id];
-            return res.status(200).send(finalScript || "-- ERROR FETCH --");
+            if (finalScript) {
+                await sendWebhookLog("✅ **SUCCESS**\n**IP:** `" + ip + "` tembus " + SETTINGS.TOTAL_LAYERS + " layer.");
+                delete sessions[id];
+                return res.status(200).send(finalScript);
+            } else {
+                return res.status(500).end();
+            }
         }
 
     } catch (err) {
