@@ -95,18 +95,25 @@ module.exports = async function(req, res) {
     const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
     const agent = req.headers['user-agent'] || "";
     
-    // == ULTRA GATEKEEPER (MURNI ERROR UNTUK BOT) == \\
-    // Hanya Roblox asli yang mengirim header 'x-roblox-place-id'
-    const isRoblox = agent.includes("Roblox") && 
-                     (req.headers['roblox-id'] || req.headers['x-roblox-place-id']);
-    
-    // Blokir Bot/Browser/Discord
-    if (!isRoblox || agent.includes("Discord") || blacklist[ip] === true) {
-        // .end() memastikan tidak ada body text yang terkirim sama sekali
+    // == GATEKEEPER EXPLICIT LOGIC (DIPERKETAT) == \\
+    const hasRobloxHeader = req.headers['x-roblox-place-id'] || req.headers['roblox-id'];
+    const isRoblox = agent.includes("Roblox") && hasRobloxHeader;
+    const isDiscord = agent.includes("Discordbot") || agent.includes("discord");
+
+    // LOGIKA PERLINDUNGAN:
+    if (blacklist[ip] === true || isDiscord) {
+        // Jika Blacklist atau Bot Discord, beri ERROR MURNI tanpa teks!
         return res.status(getRandomError()).end(); 
     }
 
-    // == PARSING URL (STEP, ID, KEY) == \\
+    if (!isRoblox) {
+        // Jika Browser biasa (Bukan Roblox), tampilkan PLAIN TEXT agar tidak error
+        const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
+        return res.status(200).send(plainResp || "BANNED ACCESS!");
+    }
+
+    // == JIKA LOLOS (BERARTI INI ROBLOX ASLI) LANJUT KE BAWAH == \\
+
     const urlParts = req.url.split('?');
     const queryString = urlParts[1] || "";
     const params = queryString.split('.');
@@ -120,11 +127,11 @@ module.exports = async function(req, res) {
     const currentPath = urlParts[0];
 
     try {
-        // == HANDSHAKE VALIDATION == \\
         if (currentStep > 0) {
             const session = sessions[id];
 
             if (session === undefined || session.ownerIP !== ip) {
+                // Jangan kasih teks, kasih error saja untuk keamanan
                 return res.status(getRandomError()).end();
             }
 
@@ -136,7 +143,7 @@ module.exports = async function(req, res) {
 
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses link mati.");
+                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
                 return res.status(getRandomError()).end();
             }
 
@@ -162,12 +169,10 @@ module.exports = async function(req, res) {
             session.used = true;
         }
         
-        // == INISIALISASI SESI PERTAMA == \\
         if (currentStep === 0) {
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
-
             const nextKey = Math.random().toString(36).substring(2, 8);
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
 
@@ -191,20 +196,15 @@ module.exports = async function(req, res) {
 
             const firstStep = sequence[0];
             const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
-            const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
-            
-            return res.status(200).send(luaScript);
+            return res.status(200).send("task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()");
         }
 
-        // == ROTASI GHOST ID == \\
         if (sessions[id].currentIndex < SETTINGS.TOTAL_LAYERS - 1) {
             const session = sessions[id];
             session.currentIndex++; 
-            
             const ipPart = ip.split('.').pop() || "0";
             const seed = parseInt(ipPart) + Math.floor(Math.random() * 10000);
             const newSessionID = seed.toString(36).substring(0, 4).padEnd(4, 'x');
-
             const nextStepNumber = session.stepSequence[session.currentIndex];
             const nextKey = Math.random().toString(36).substring(2, 8); 
             const waitTime = Math.floor(Math.random() * (SETTINGS.MAX_WAIT - SETTINGS.MIN_WAIT)) + SETTINGS.MIN_WAIT;
@@ -220,16 +220,12 @@ module.exports = async function(req, res) {
                 requiredWait: waitTime, 
                 used: false 
             };
-            
             delete sessions[id]; 
 
             const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
-            const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
-
-            return res.status(200).send(luaScript);
+            return res.status(200).send("task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()");
         }
 
-        // == FINAL KIRIM SCRIPT DARI GITHUB == \\
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
             const finalScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
             if (finalScript) {
