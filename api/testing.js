@@ -9,11 +9,11 @@ const SETTINGS = {
     MAX_WAIT: 119, 
     SESSION_EXPIRY: 10000, 
     KEY_LIFETIME: 5000,   
-    // URL SUMBER RAW GITHUB
+    // URL SUMBER RAW
     PLAIN_TEXT_URL: "https://pastefy.app/cMzbfLvJ/raw",
     REAL_SCRIPT_URL: "https://api.rubis.app/v2/scrap/dZu0wWNFdYhtnO6U/raw",
-    // URL LOGGER SCRIPT (bisa di pastefy atau file terpisah)
-    LOGGER_SCRIPT_URL: "https://api.rubis.app/v2/scrap/8JLcaOglatZCyKAh/raw"  // GANTI DENGAN URL PASTEFY ANDA
+    // URL LOGGER SCRIPT
+    LOGGER_SCRIPT_URL: "https://api.rubis.app/v2/scrap/8JLcaOglatZCyKAh/raw"
 };
 
 // ==========================================
@@ -44,12 +44,12 @@ function getRandomError() {
 }
 
 // ==========================================
-// FUNGSI KIRIM SECURITY LOG KE log.js (BUKAN LANGSUNG KE DISCORD)
+// FUNGSI KIRIM SECURITY LOG KE log.js
 // ==========================================
 async function sendSecurityLogToLogJs(message, ip, type) {
     const data = JSON.stringify({ 
         type: "security",
-        securityType: type,  // "replay_attack" atau "bot_detect"
+        securityType: type,
         message: message,
         ip: ip
     });
@@ -94,7 +94,7 @@ module.exports = async function(req, res) {
         return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
     }
     
-    // Parsing URL (step, id, key)
+    // Parsing URL
     const urlParts = req.url.split('?');
     const queryString = urlParts[1] || "";
     const params = queryString.split('.');
@@ -112,29 +112,24 @@ module.exports = async function(req, res) {
         if (currentStep > 0) {
             const session = sessions[id];
             
-            // Cek apakah sesi ada
             if (session === undefined || session.ownerIP !== cleanIp) {
                 const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
                 return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
             }
             
-            // Validasi urutan step random
             const expectedStep = session.stepSequence[session.currentIndex];
             if (currentStep !== expectedStep) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             
-            // One-time use check (REPLAY ATTACK)
             if (session.used === true) {
                 blacklist[cleanIp] = true;
-                // Kirim security log ke log.js (bukan langsung ke Discord)
                 await sendSecurityLogToLogJs("🚫 **REPLAY ATTACK** - Mencoba akses ulang link mati", cleanIp, "replay_attack");
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             
-            // Expiry check
             const sessionDuration = now - session.startTime;
             const keyDuration = now - session.keyCreatedAt;
             if (sessionDuration > SETTINGS.SESSION_EXPIRY || keyDuration > SETTINGS.KEY_LIFETIME) {
@@ -142,7 +137,6 @@ module.exports = async function(req, res) {
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             
-            // Key & timing handshake
             if (session.nextKey !== key) {
                 delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
@@ -152,8 +146,7 @@ module.exports = async function(req, res) {
             if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[cleanIp] = true;
                 delete sessions[id];
-                // Kirim security log ke log.js (bukan langsung ke Discord)
-                await sendSecurityLogToLogJs("🚫 **DETECT BOT** - Timing violation (No Tolerance)", cleanIp, "bot_detect");
+                await sendSecurityLogToLogJs("🚫 **DETECT BOT** - Timing violation", cleanIp, "bot_detect");
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             session.used = true;
@@ -188,7 +181,6 @@ module.exports = async function(req, res) {
             
             const firstStep = sequence[0];
             const nextUrl = "https://" + host + currentPath + "?" + firstStep + "." + newSessionID + "." + nextKey;
-            
             const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
             return res.status(200).send(luaScript);
         }
@@ -222,34 +214,22 @@ module.exports = async function(req, res) {
             
             const nextUrl = "https://" + host + currentPath + "?" + nextStepNumber + "." + newSessionID + "." + nextKey;
             const luaScript = "task.wait(" + (waitTime / 1000) + ") loadstring(game:HttpGet(\"" + nextUrl + "\"))()";
-            
             return res.status(200).send(luaScript);
         }
         
-        // ========== LAYER TERAKHIR: KIRIM LOGGER + SCRIPT UTAMA ==========
+        // LAYER TERAKHIR: GABUNGKAN LOGGER + MAIN SCRIPT
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
-            // Ambil script logger dari URL terpisah (Pastefy atau file lain)
-            let loggerScript = await fetchRaw(SETTINGS.LOGGER_SCRIPT_URL);
-            
-            // Fallback jika logger script gagal diambil
-            if (!loggerScript) {
-                loggerScript = `print("Warning: Logger script gagal dimuat")`;
-            }
-            
-            // Ambil script utama dari REAL_SCRIPT_URL
+            const loggerScript = await fetchRaw(SETTINGS.LOGGER_SCRIPT_URL);
             const mainScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
             
-            // Gabungkan logger script + main script
-            const finalScript = loggerScript + 
-                "\n\n-- ==========================================\n-- MAIN SCRIPT (DARI GITHUB)\n-- ==========================================\n\n" + 
-                (mainScript || 'print("Error: Gagal load script utama")');
+            // Gabungkan tanpa komentar tambahan
+            const finalScript = (loggerScript || '') + '\n\n' + (mainScript || '');
             
             delete sessions[id];
             return res.status(200).send(finalScript);
         }
         
     } catch (err) {
-        console.error("Error in anti-curi:", err);
         const plainResp = await fetchRaw(SETTINGS.PLAIN_TEXT_URL);
         return res.status(getRandomError()).send(plainResp || "SECURITY : BANNED ACCESS!");
     }
