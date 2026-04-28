@@ -11,7 +11,7 @@ const SETTINGS = {
     KEY_LIFETIME: 5000,   
     // URL SUMBER RAW GITHUB
     PLAIN_TEXT_URL: "https://pastefy.app/cMzbfLvJ/raw",
-    REAL_SCRIPT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/SLFB.lua"
+    REAL_SCRIPT_URL: "https://api.rubis.app/v2/scrap/dZu0wWNFdYhtnO6U/raw"
 };
 
 // ==========================================
