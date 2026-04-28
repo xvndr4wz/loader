@@ -4,6 +4,12 @@ const http = require('http');
 
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5";
 
+// Konfigurasi bot Discord
+const BOT_USERNAME = "Ndraawz Hub Logger";
+const BOT_AVATAR_URL = "https://cdn.discordapp.com/attachments/1464912658108125278/1472698650848395451/icon.png";
+const FOOTER_ICON_URL = "https://cdn.discordapp.com/attachments/1464912658108125278/1472698650848395451/icon.png";
+const EMBED_COLOR = 0x00e5ff; // Biru cyan
+
 // ==========================================
 // FUNGSI AMBIL GEOLOKASI (HANYA UNTUK PLAYER LOG)
 // ==========================================
@@ -54,7 +60,12 @@ function getGeoInfo(ip) {
 // FUNGSI KIRIM EMBED KE DISCORD
 // ==========================================
 async function sendToDiscord(embed) {
-    const payload = JSON.stringify({ embeds: [embed] });
+    const payload = JSON.stringify({
+        username: BOT_USERNAME,
+        avatar_url: BOT_AVATAR_URL,
+        embeds: [embed]
+    });
+    
     const url = new URL(DISCORD_WEBHOOK);
     const options = {
         hostname: url.hostname,
@@ -106,10 +117,13 @@ module.exports = async function handler(req, res) {
             console.log(`[LOG] Security log: ${data.securityType} for IP: ${data.ip || cleanIp}`);
             
             const embed = {
-                title: "❗️ Ndraawz Security ❗️",
+                title: "❗️ Ndraawz Security System ❗️",
                 description: data.message,
-                color: 0xff0000,
-                footer: { text: "Security System | IP: " + (data.ip || cleanIp) },
+                color: EMBED_COLOR,
+                footer: {
+                    text: "Ndraawz Logger System",
+                    icon_url: FOOTER_ICON_URL
+                },
                 timestamp: new Date().toISOString()
             };
             
@@ -150,9 +164,13 @@ module.exports = async function handler(req, res) {
             }
             
             const embed = {
-                title: "🚀 Ndraawz Logger",
-                color: 0x00ff88,
+                title: "🚀 Ndraawz Logger System",
+                color: EMBED_COLOR,
                 fields: allFields,
+                footer: {
+                    text: "Ndraawz Logger System",
+                    icon_url: FOOTER_ICON_URL
+                },
                 timestamp: new Date().toISOString()
             };
             
@@ -189,9 +207,13 @@ module.exports = async function handler(req, res) {
             }
             
             const embed = {
-                title: "🚀 Ndraawz Logger",
-                color: 0x00ff88,
+                title: "🚀 Ndraawz Logger System",
+                color: EMBED_COLOR,
                 fields: allFields,
+                footer: {
+                    text: "Ndraawz Logger System",
+                    icon_url: FOOTER_ICON_URL
+                },
                 timestamp: new Date().toISOString()
             };
             
