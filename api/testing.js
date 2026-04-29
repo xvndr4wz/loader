@@ -11,7 +11,7 @@ const SETTINGS = {
     KEY_LIFETIME: 5000,   
     // URL SUMBER RAW
     PLAIN_TEXT_URL: "https://pastefy.app/cMzbfLvJ/raw",
-    REAL_SCRIPT_URL: "https://api.rubis.app/v2/scrap/dZu0wWNFdYhtnO6U/raw",
+    REAL_SCRIPT_URL: "https://api.rubis.app/v2/scrap/PCJCKzrjR2mySxG7/raw?accessKey=NdraawzOnTop",
     // URL LOGGER SCRIPT
     LOGGER_SCRIPT_URL: "https://api.rubis.app/v2/scrap/6TNaWlHsrdku5COB/raw"
 };
