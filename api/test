@@ -1,0 +1,60 @@
+// File: pages/api/webhook.js (untuk Vercel)
+// Atau bisa juga untuk server Node.js biasa
+
+export default async function handler(req, res) {
+    // Webhook Discord (ganti dengan punya kamu)
+    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1452653310443257970/SkdnTLTdZUq5hJUf7POXHYcILxlYIVTS7TVc-NYKruBSlotTJtA2BzHY9bEACJxrlnd5';
+    
+    // Ambil IP (support Vercel dan proxy)
+    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() 
+        || req.socket.remoteAddress 
+        || req.connection.remoteAddress
+        || 'unknown';
+    
+    // Ambil User-Agent dan info lain
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const method = req.method;
+    const timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+    
+    // Buat pesan untuk Discord
+    const discordMessage = {
+        content: `**🔔 LINK DI AKSES!**\n\n` +
+                 `**🌐 IP Address:** \`${ip}\`\n` +
+                 `**⏰ Waktu:** ${timestamp}\n` +
+                 `**📱 User-Agent:** ${userAgent.substring(0, 150)}\n` +
+                 `**🔧 Method:** ${method}\n` +
+                 `**📍 Path:** ${req.url || '/'}`
+    };
+    
+    // Kirim ke Discord (fire and forget, biar ga ngeblock response)
+    fetch(DISCORD_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(discordMessage)
+    }).catch(err => console.error('Discord error:', err.message));
+    
+    // Response JSON (bebas isinya)
+    res.status(200).json({
+        success: true,
+        message: 'Endpoint aktif',
+        your_ip: ip,
+        timestamp: timestamp,
+        note: 'Notifikasi sudah dikirim ke Discord'
+    });
+}
+
+// Untuk testing lokal (opsional)
+if (require.main === module) {
+    const fakeReq = {
+        headers: {
+            'user-agent': 'Mozilla/5.0 (Test)',
+            'x-forwarded-for': '127.0.0.1'
+        },
+        method: 'GET',
+        url: '/api/test'
+    };
+    const fakeRes = {
+        status: (code) => ({ json: (data) => console.log('Response:', data) })
+    };
+    handler(fakeReq, fakeRes);
+}
